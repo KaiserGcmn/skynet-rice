@@ -1,0 +1,340 @@
+#!/usr/bin/python3
+"""Promote a verified ExpertBook initramfs to normal Debian boot and archive test entries."""
+import argparse
+import datetime
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+
+BASE = Path('/var/lib/expertbook/boot/default-boot')
+BACKUPS = Path('/var/backups/expertbook-default')
+KERNEL = '6.12.111+deb13-amd64'
+NORMAL = Path('/boot/initrd.img-' + KERNEL)
+MENU = Path('/boot/grub/grub.cfg')
+HOOK = Path('/etc/initramfs-tools/hooks/zz-expertbook-boot')
+PAYLOAD = Path('/usr/local/lib/expertbook-boot') / KERNEL
+OPTIONS = 'slab_nomerge init_on_alloc=1 page_alloc.shuffle=1 randomize_kstack_offset=on vsyscall=none iommu.passthrough=0 efi=disable_early_pci_dma nmi_watchdog=0 loglevel=3'.split()
+SCRIPTS = [Path('/etc/grub.d')/name for name in
+           ('42_expertbook_previous','43_expertbook_vmd_test','44_expertbook_vmd_usbc_test')]
+IMAGES = [Path(str(NORMAL)+suffix) for suffix in ('-vmd-test','-vmd-usbc-test')]
+VMD = {'source':'/var/backups/vmd-test/20261004-233141-741903/vmd.ko.xz',
+       'sha256':'6edec8c09f3b2d3e7284cf9981cdf20a6741041215af3762a7cd2180c43b6c42',
+       'relative':'kernel/drivers/pci/controller/vmd.ko.xz',
+       'version':'0.6-mtl016-b437504-deb13-test1'}
+UCSI = {'source':'/var/backups/vmd-usbc-test/20261005-142056-002408/typec_ucsi.ko.xz',
+        'sha256':'1e80dbfeb8736ab75ed7f332c797cf48c2c9fcfa5161d5c264b81d50742d8308',
+        'relative':'kernel/drivers/usb/typec/ucsi/typec_ucsi.ko.xz',
+        'version':'6.12.111-notify-retry-test1'}
+IMAGE_HASHES = ['f32db44185ae72255e06dcfd47b4e561059cc23e0b65a01fa3ae8b884337276e',
+                '8a2cf901a473d8107344120b74941065f6bf53c5456c454fa0fc78cf292661a8']
+
+
+def run(*args):
+    result = subprocess.run(args, text=True, capture_output=True)
+    if result.returncode:
+        raise RuntimeError(shlex.join(args)+'\n'+result.stdout+result.stderr)
+    return result.stdout+result.stderr
+
+
+def sha(path):
+    with Path(path).open('rb') as handle:
+        return hashlib.file_digest(handle,'sha256').hexdigest()
+
+
+def atomic_copy(source, target, mode):
+    temporary = target.with_name(target.name+'.expertbook-new')
+    try:
+        with temporary.open('xb') as writer, source.open('rb') as reader:
+            os.fchmod(writer.fileno(),mode)
+            shutil.copyfileobj(reader,writer)
+            writer.flush()
+            os.fsync(writer.fileno())
+        os.replace(temporary,target)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def report(name, data):
+    target = BASE/name
+    if target.is_symlink():
+        raise RuntimeError('The report target is a symbolic link.')
+    with target.open('w') as handle:
+        os.fchmod(handle.fileno(),0o600)
+        json.dump(data,handle,indent=2)
+        handle.write('\n')
+    os.chown(target, 0, 0)
+
+
+def defaults():
+    values = run('/bin/sh','-c','''. /etc/default/grub
+for fragment in /etc/default/grub.d/*.cfg; do
+    [ ! -f "$fragment" ] || . "$fragment"
+done
+printf '%s\\n' "$GRUB_DEFAULT" "$GRUB_TIMEOUT" "$GRUB_TIMEOUT_STYLE" "$GRUB_CMDLINE_LINUX_DEFAULT"
+''').splitlines()
+    if values[:3] != ['0','3','menu'] or not set(OPTIONS).issubset(shlex.split(values[3])):
+        raise RuntimeError('Unexpected default boot or security settings.')
+
+
+def preflight():
+    if os.geteuid()!=0:
+        raise RuntimeError('System administrator authentication is required.')
+    if os.uname().release!=KERNEL or Path('/sys/class/dmi/id/product_name').read_text().strip()!='ASUS EXPERTBOOK B3405CCA':
+        raise RuntimeError('The inspected kernel or device has changed.')
+    if Path('/sys/module/vmd/version').read_text().strip()!=VMD['version']:
+        raise RuntimeError('The verified VMD driver is not running.')
+    if not set(OPTIONS).issubset(shlex.split(Path('/proc/cmdline').read_text())):
+        raise RuntimeError('The expected security parameters are missing.')
+    if Path('/vmlinuz').resolve()!=Path('/boot/vmlinuz-'+KERNEL):
+        raise RuntimeError('The default kernel has changed.')
+    defaults()
+
+
+def make_hook(modules, payload):
+    text = '''#!/bin/sh
+# Preserve the reviewed modules only for the exact validated kernel ABI.
+# New kernels use their packaged drivers and remain eligible for default boot.
+set -eu
+case "${1:-}" in prereqs) exit 0 ;; esac
+[ "$version" = '''+shlex.quote(KERNEL)+''' ] || exit 0
+. /usr/share/initramfs-tools/hook-functions
+manual_add_modules vmd
+'''
+    if len(modules)>1:
+        text += 'force_load typec_ucsi\n'
+    text += 'apply_add_modules\n'
+    for module in modules:
+        source = payload/Path(module['source']).name
+        text += 'printf \'%s\\n\' '+shlex.quote(module['sha256']+'  '+str(source))+' | sha256sum --check --status\n'
+        text += 'target="$DESTDIR/usr/lib/modules/$version/'+module['relative']+'"\n'
+        text += 'test -f "$target"\ninstall -m 0644 '+shlex.quote(str(source))+' "$target"\n'
+    return text
+
+
+def validate_image(image, unpack, modules, expect_ucsi):
+    run('unmkinitramfs',str(image),str(unpack))
+    matches = list(unpack.rglob('vmd.ko.xz'))
+    if len(matches)!=1:
+        raise RuntimeError('Expected one VMD module in the image.')
+    module_root = matches[0].parents[4]
+    if module_root.name!=KERNEL:
+        raise RuntimeError('Unexpected module directory in the image.')
+    expected = {module['relative']:module['sha256'] for module in modules}
+    checked = 0
+    for path in module_root.rglob('*.ko*'):
+        if not path.is_file():
+            continue
+        relative = str(path.relative_to(module_root))
+        expected_hash = expected.get(relative)
+        if expected_hash is None:
+            expected_hash = sha(Path('/lib/modules')/KERNEL/relative)
+        if sha(path)!=expected_hash:
+            raise RuntimeError('Unexpected module contents: '+relative)
+        checked += 1
+    for module in modules:
+        path = module_root/module['relative']
+        if not path.is_file() or sha(path)!=module['sha256']:
+            raise RuntimeError('The selected module is missing from the image.')
+        if run('modinfo','-F','version',str(path)).strip()!=module['version']:
+            raise RuntimeError('The selected module version does not match.')
+    for module in ('nvme','nvme-core','ext4','mei-me','mei_gsc_proxy'):
+        if not list(module_root.rglob(module+'.ko.xz')):
+            raise RuntimeError('A required boot module is missing: '+module)
+    lists = list(unpack.glob('*/conf/modules'))
+    if len(lists)!=1:
+        raise RuntimeError('The early module list is missing.')
+    early = [line.split()[0] for line in lists[0].read_text().splitlines()
+             if line.strip() and not line.lstrip().startswith('#')]
+    if ('typec_ucsi' in early)!=expect_ucsi or 'ucsi_acpi' in early:
+        raise RuntimeError('Unexpected early USB-C module loading.')
+    return {'checked_modules':checked,'early_modules':early}
+
+
+def prepare(profile):
+    preflight()
+    if any(os.path.lexists(p) for p in (HOOK,PAYLOAD)):
+        raise RuntimeError('A persistent ExpertBook hook or payload already exists.')
+    inspection = json.loads((BASE/'inspection.json').read_text())
+    for path,expected in inspection['files'].items():
+        if sha(path)!=expected:
+            raise RuntimeError('An inspected configuration changed: '+path)
+    if shutil.disk_usage('/var/backups').free<3*1024**3:
+        raise RuntimeError('At least 3 GiB of free space is required.')
+    modules = [VMD,UCSI] if profile=='vmd-usbc' else [VMD]
+    selected = 1 if profile=='vmd-usbc' else 0
+    for image,expected in zip(IMAGES,IMAGE_HASHES):
+        if sha(image)!=expected:
+            raise RuntimeError('A previously verified test image changed.')
+    stage = BACKUPS/datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
+    stage.mkdir(parents=True,mode=0o700)
+    print('Preparation directory: '+str(stage),flush=True)
+    protected = [MENU,NORMAL,*IMAGES,*SCRIPTS,Path('/boot/vmlinuz-'+KERNEL),
+                 Path('/boot/initrd.img-6.12.107+deb13-amd64'),Path('/boot/vmlinuz-6.12.107+deb13-amd64'),
+                 Path('/etc/default/grub'),Path('/etc/default/grub.d/90-expertbook-hardening.cfg'),
+                 Path('/etc/default/grub.d/95-expertbook-boot.cfg'),Path('/etc/initramfs-tools/modules'),
+                 Path('/etc/tlp.d/90-expertbook-b3405.conf'),
+                 Path('/lib/modules')/KERNEL/VMD['relative'],Path('/lib/modules')/KERNEL/UCSI['relative']]
+    hashes = {str(path):sha(path) for path in protected}
+    payload = stage/'modules'; payload.mkdir(mode=0o700)
+    for module in modules:
+        source = Path(module['source'])
+        if source.stat().st_uid!=0 or sha(source)!=module['sha256']:
+            raise RuntimeError('The signed module source could not be verified.')
+        shutil.copy2(source,payload/source.name)
+    live_hook = stage/'zz-expertbook-boot'
+    live_hook.write_text(make_hook(modules,PAYLOAD)); live_hook.chmod(0o755)
+    run('/bin/sh','-n',str(live_hook))
+    conf = stage/'initramfs-tools'
+    shutil.copytree('/etc/initramfs-tools',conf,symlinks=True)
+    staged_hook = conf/'hooks'/HOOK.name
+    staged_hook.parent.mkdir(exist_ok=True)
+    staged_hook.write_text(make_hook(modules,payload)); staged_hook.chmod(0o755)
+    print('Validating the persistent hook using a separate initramfs build.',flush=True)
+    rebuilt = stage/'hook-validation-initrd'
+    (stage/'mkinitramfs.log').write_text(run('mkinitramfs','-d',str(conf),'-o',str(rebuilt),KERNEL))
+    rebuilt_result = validate_image(rebuilt,stage/'unpacked-rebuilt',modules,profile=='vmd-usbc')
+    # Promote the exact image already used in successful boots.
+    image = stage/'normal-initrd'
+    shutil.copy2(IMAGES[selected],image)
+    promoted_result = validate_image(image,stage/'unpacked-promoted',modules,profile=='vmd-usbc')
+    if rebuilt_result['early_modules']!=promoted_result['early_modules']:
+        raise RuntimeError('The persistent hook produces a different early module list.')
+    for path,expected in hashes.items():
+        if sha(path)!=expected:
+            raise RuntimeError('A protected file changed during preparation: '+path)
+    meta = {'stage':str(stage),'kernel':KERNEL,'profile':profile,'modules':modules,
+            'image_sha256':sha(image),'hook_sha256':sha(live_hook),'protected_sha256':hashes,
+            'hook_validation':rebuilt_result,'promoted_image_validation':promoted_result,
+            'default_entry':'Debian GNU/Linux','default_index':0,'menu_timeout_seconds':3,
+            'security_options':OPTIONS,'remove_scripts':[str(p) for p in SCRIPTS],
+            'archive_images':[str(p) for p in IMAGES],'recovery_and_old_kernel_preserved':True,
+            'installed':False,'default_boot_runtime_verified':False}
+    (stage/'prepared.json').write_text(json.dumps(meta,indent=2)+'\n')
+    report('prepared.json',meta)
+    print(json.dumps({k:v for k,v in meta.items() if k not in ('protected_sha256','modules','security_options')},indent=2),flush=True)
+
+
+def command_lines(text, command):
+    return [shlex.split(line) for line in text.splitlines()
+            if re.match(r'^\s*'+command+r'(?:efi)?\s+',line)]
+
+
+def install(stage):
+    preflight()
+    if stage.is_symlink() or stage.resolve().parent!=BACKUPS or stage.stat().st_uid!=0 or stage.stat().st_mode & 0o022:
+        raise RuntimeError('The preparation directory is not root-protected.')
+    meta = json.loads((stage/'prepared.json').read_text())
+    if meta['kernel']!=KERNEL or meta['installed']:
+        raise RuntimeError('Unexpected preparation metadata.')
+    for path,expected in meta['protected_sha256'].items():
+        if sha(path)!=expected:
+            raise RuntimeError('A protected file changed after preparation: '+path)
+    for path,expected in [(stage/'normal-initrd',meta['image_sha256']),
+                          (stage/HOOK.name,meta['hook_sha256'])]:
+        if path.stat().st_uid!=0 or sha(path)!=expected:
+            raise RuntimeError('The prepared file changed: '+str(path))
+    if any(os.path.lexists(p) for p in (HOOK,PAYLOAD)):
+        raise RuntimeError('The persistent hook or payload already exists.')
+    archive = stage/'before'; archive.mkdir(mode=0o700)
+    originals = [MENU,NORMAL,*SCRIPTS,*IMAGES]
+    for path in originals:
+        target = archive/str(path).lstrip('/')
+        target.parent.mkdir(parents=True,exist_ok=True)
+        shutil.copy2(path,target)
+    original_menu = MENU.read_text()
+    old_linux = command_lines(original_menu,'linux')
+    old_initrds = command_lines(original_menu,'initrd')
+    if len(old_linux)<5 or any(original_menu.count('--id '+name)!=1 for name in
+        ('expertbook-previous-settings','expertbook-vmd-test','expertbook-vmd-usbc-test')):
+        raise RuntimeError('The expected three custom entries were not found.')
+    try:
+        PAYLOAD.mkdir(parents=True,mode=0o755)
+        for module in meta['modules']:
+            name = Path(module['source']).name
+            source = stage/'modules'/name
+            if sha(source)!=module['sha256']:
+                raise RuntimeError('The prepared module changed.')
+            atomic_copy(source,PAYLOAD/name,0o644)
+        atomic_copy(stage/HOOK.name,HOOK,0o755)
+        atomic_copy(stage/'normal-initrd',NORMAL,0o644)
+        for script in SCRIPTS:
+            script.unlink()
+        generated = stage/'grub.cfg.new'
+        (stage/'grub-generation.log').write_text(run('grub-mkconfig','-o',str(generated)))
+        run('grub-script-check',str(generated))
+        new_menu = generated.read_text()
+        if command_lines(new_menu,'linux')!=old_linux[:-3] or command_lines(new_menu,'initrd')!=old_initrds[:-3]:
+            raise RuntimeError('Standard boot entries changed unexpectedly.')
+        if any(name in new_menu for name in ('expertbook-previous-settings','expertbook-vmd-test','expertbook-vmd-usbc-test')):
+            raise RuntimeError('An obsolete test entry remains in the menu.')
+        if not re.search(r'^\s*set default="0"\s*$',new_menu,re.M) or 'recovery mode' not in new_menu:
+            raise RuntimeError('The default or recovery menu could not be verified.')
+        first = command_lines(new_menu,'linux')[0]
+        if first[1]!='/boot/vmlinuz-'+KERNEL or not set(OPTIONS).issubset(first):
+            raise RuntimeError('The normal default does not preserve the selected kernel and security options.')
+        changed = {str(NORMAL),*(str(p) for p in SCRIPTS)}
+        for path,expected in meta['protected_sha256'].items():
+            if path not in changed and sha(path)!=expected:
+                raise RuntimeError('An unrelated protected file changed: '+path)
+        if sha(NORMAL)!=meta['image_sha256'] or sha(HOOK)!=meta['hook_sha256']:
+            raise RuntimeError('The installed image or hook could not be verified.')
+        atomic_copy(generated,MENU,0o600)
+        if MENU.read_text()!=new_menu:
+            raise RuntimeError('The installed GRUB menu differs from the verified menu.')
+        # The old menu no longer references these images; verified copies are archived.
+        for image in IMAGES:
+            if sha(archive/str(image).lstrip('/'))!=meta['protected_sha256'][str(image)]:
+                raise RuntimeError('The archived test image could not be verified.')
+            image.unlink()
+        os.sync()
+        result = {'stage':str(stage),'backup':str(archive),'installed':True,'profile':meta['profile'],
+                  'kernel':KERNEL,'default_entry':'Debian GNU/Linux','default_index':0,
+                  'normal_initrd':str(NORMAL),'normal_initrd_sha256':sha(NORMAL),
+                  'persistent_hook':str(HOOK),'payload':str(PAYLOAD),
+                  'removed_test_entries':3,'removed_test_images':2,
+                  'security_options_unchanged':True,'recovery_and_old_kernel_preserved':True,
+                  'stock_rootfs_modules_unchanged':True,'kernel_upgrades_not_pinned':True,
+                  'module_override_kernel':KERNEL,'default_boot_runtime_verified':False,
+                  'reboot_performed':False}
+        (stage/'installed.json').write_text(json.dumps(result,indent=2)+'\n')
+        report('installed.json',result)
+        print(json.dumps(result,indent=2),flush=True)
+    except Exception:
+        # Restore images and generators before restoring the previous menu.
+        for path in [NORMAL,*IMAGES,*SCRIPTS,MENU]:
+            saved = archive/str(path).lstrip('/')
+            atomic_copy(saved,path,saved.stat().st_mode & 0o777)
+        HOOK.unlink(missing_ok=True)
+        if PAYLOAD.exists():
+            shutil.rmtree(PAYLOAD)
+        os.sync()
+        print('The previous boot configuration was restored.',file=sys.stderr,flush=True)
+        raise
+
+
+def main():
+    os.environ.update(PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',LC_ALL='C')
+    parser = argparse.ArgumentParser(description=__doc__)
+    commands = parser.add_subparsers(dest='action',required=True)
+    prep = commands.add_parser('prepare'); prep.add_argument('--profile',choices=['vmd','vmd-usbc'],required=True)
+    apply = commands.add_parser('install'); apply.add_argument('--stage',type=Path,required=True)
+    args = parser.parse_args()
+    preflight()
+    with Path('/run/lock/expertbook-default-boot.lock').open('a') as lock:
+        fcntl.flock(lock,fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if args.action=='prepare': prepare(args.profile)
+        else: install(args.stage)
+
+
+if __name__=='__main__':
+    try: main()
+    except Exception as error:
+        print('Error: '+str(error),file=sys.stderr,flush=True)
+        sys.exit(1)

@@ -1,0 +1,17 @@
+[Unit]
+Description=Remember speaker and microphone mute switches
+Requires=pipewire-pulse.service
+Wants=wireplumber.service
+After=pipewire.service wireplumber.service pipewire-pulse.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/libexec/audio-mute-state restore
+ExecStop=/usr/local/libexec/audio-mute-state save
+TimeoutStartSec=30
+TimeoutStopSec=15
+UMask=0077
+
+[Install]
+WantedBy=default.target

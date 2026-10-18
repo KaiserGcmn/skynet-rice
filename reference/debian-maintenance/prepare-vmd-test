@@ -1,0 +1,152 @@
+#!/usr/bin/python3
+"""Build and validate a separate VMD test initramfs; never install or load it."""
+import datetime
+import hashlib
+import json
+import lzma
+import os
+from pathlib import Path
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+
+BASE = Path('/var/lib/expertbook/boot/vmd-fix')
+KERNEL = '6.12.111+deb13-amd64'
+MODULE = BASE / 'build-patched/vmd.ko'
+MODULE_SHA = '9cf81cb73e145339d88df9f453b69a3d582fd235f89c8a3532e513f69eed4438'
+VERSION = '0.6-mtl016-b437504-deb13-test1'
+IMAGE = '/boot/initrd.img-' + KERNEL + '-vmd-test'
+OPTIONS = 'slab_nomerge init_on_alloc=1 page_alloc.shuffle=1 randomize_kstack_offset=on vsyscall=none iommu.passthrough=0 efi=disable_early_pci_dma nmi_watchdog=0 loglevel=3'.split()
+
+
+def run(*args):
+    result = subprocess.run(args, text=True, capture_output=True)
+    if result.returncode:
+        raise RuntimeError(shlex.join(args) + '\n' + result.stdout + result.stderr)
+    return result.stdout + result.stderr
+
+
+def sha(path):
+    with Path(path).open('rb') as f:
+        return hashlib.file_digest(f, 'sha256').hexdigest()
+
+
+def main():
+    os.environ.update(PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', LC_ALL='C')
+    if os.geteuid() != 0 or not os.access('/var/backups', os.W_OK):
+        raise RuntimeError('System administrator authentication is required for preparation.')
+    if os.uname().release != KERNEL or Path('/sys/class/dmi/id/product_name').read_text().strip() != 'ASUS EXPERTBOOK B3405CCA':
+        raise RuntimeError('The inspected device or kernel has changed.')
+    device = Path('/sys/bus/pci/devices/0000:00:0e.0')
+    if (device/'vendor').read_text().strip() != '0x8086' or (device/'device').read_text().strip() != '0x7d0b':
+        raise RuntimeError('The VMD controller identity has changed.')
+    if sha(MODULE) != MODULE_SHA:
+        raise RuntimeError('The compiled and verified module has changed.')
+    if not set(OPTIONS).issubset(shlex.split(Path('/proc/cmdline').read_text())):
+        raise RuntimeError('A normal boot with the configured security parameters was expected.')
+    if shutil.disk_usage('/var/backups').free < 2 * 1024**3:
+        raise RuntimeError('Not enough space for preparation and extraction verification.')
+    stage = Path('/var/backups/vmd-test') / datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
+    stage.mkdir(parents=True, mode=0o700)
+    print('Preparation directory only: ' + str(stage), flush=True)
+    watched = [Path('/boot/grub/grub.cfg'), Path('/boot/initrd.img-' + KERNEL),
+               Path('/etc/default/grub.d/90-expertbook-hardening.cfg'),
+               Path('/etc/default/grub.d/95-expertbook-boot.cfg'),
+               Path('/lib/modules')/KERNEL/'kernel/drivers/pci/controller/vmd.ko.xz']
+    hashes = {str(p): sha(p) for p in watched}
+    shutil.copy2(MODULE, stage/'vmd.ko')
+    shutil.copy2(BASE/'build-patched/vmd.c', stage/'vmd.c')
+    shutil.copy2(BASE/'debian-6.12.111-vmd-mtl016.patch', stage/'backport.patch')
+    shutil.copy2(BASE/'downloads/upstream-commit.json', stage/'upstream-commit.json')
+    sign = Path('/usr/src')/('linux-headers-'+KERNEL)/'scripts/sign-file'
+    key = Path('/var/lib/dkms/mok.key')
+    cert = Path('/var/lib/dkms/mok.pub')
+    if not all(p.is_file() for p in (sign, key, cert)):
+        raise RuntimeError('The existing DKMS signing tool or key was not found; preparation stopped without using an unsigned module.')
+    run(str(sign), 'sha256', str(key), str(cert), str(stage/'vmd.ko'))
+    signer = run('modinfo', '-F', 'signer', str(stage/'vmd.ko')).strip()
+    if not signer or run('modinfo','-F','version',str(stage/'vmd.ko')).strip() != VERSION:
+        raise RuntimeError('Could not verify the module version or signature metadata.')
+    # Signing reuses the machine's existing DKMS key; no key is enrolled,
+    # no signature policy is changed, and no module is loaded.
+    # Match Debian's CRC32 XZ module format for the kernel decompressor.
+    compressed = lzma.compress((stage/'vmd.ko').read_bytes(), preset=6,
+                               check=lzma.CHECK_CRC32)
+    if compressed[7] != 1:
+        raise RuntimeError('The module XZ checksum format is not CRC32.')
+    (stage/'vmd.ko.xz').write_bytes(compressed)
+    conf = stage/'initramfs-tools'
+    shutil.copytree('/etc/initramfs-tools', conf, symlinks=True)
+    hooks = conf/'hooks'; hooks.mkdir(exist_ok=True)
+    hook = hooks/'zz-expertbook-vmd-test'
+    hook.write_text('''#!/bin/sh
+set -eu
+case "${1:-}" in prereqs) exit 0 ;; esac
+test "$version" = ''' + shlex.quote(KERNEL) + '''
+target="$DESTDIR/usr/lib/modules/$version/kernel/drivers/pci/controller/vmd.ko.xz"
+test -f "$target"
+install -m 0644 ''' + shlex.quote(str(stage/'vmd.ko.xz')) + ''' "$target"
+''')
+    hook.chmod(0o755)
+    run('/bin/sh', '-n', str(hook))
+    initrd = stage/'initrd-vmd-test'
+    print('Preparing a separate initramfs; existing /boot files are not being modified.', flush=True)
+    (stage/'mkinitramfs.log').write_text(run('mkinitramfs','-d',str(conf),'-o',str(initrd),KERNEL))
+    listing = run('lsinitramfs',str(initrd))
+    (stage/'contents.txt').write_text(listing)
+    for name in ('nvme','nvme-core','vmd','ext4','mei-me','mei_gsc_proxy'):
+        if not re.search(r'/'+re.escape(name)+r'\.ko(?:\.(?:xz|gz|zst))?$',listing,re.M):
+            raise RuntimeError('Required module missing: '+name)
+    unpack = stage/'unpacked'
+    run('unmkinitramfs',str(initrd),str(unpack))
+    matches = list(unpack.rglob('vmd.ko.xz'))
+    if len(matches) != 1 or sha(matches[0]) != sha(stage/'vmd.ko.xz'):
+        raise RuntimeError('Could not verify the test driver in the initramfs.')
+    menu = Path('/boot/grub/grub.cfg').read_text()
+    lines = menu.splitlines()
+    start = next(i for i,line in enumerate(lines) if line.startswith('menuentry '))
+    end = next(i for i in range(start+1,len(lines)) if lines[i] == '}')
+    original = '\n'.join(lines[start:end+1])+'\n'
+    entry = '\n'.join(["menuentry 'Debian - VMD fix test (security preserved)' --id expertbook-vmd-test {",*lines[start+1:end],'}',''])
+    linux = [shlex.split(line) for line in entry.splitlines() if re.match(r'^\s*linux(?:efi)?\s+',line)]
+    if len(linux)!=1 or linux[0][1]!='/boot/vmlinuz-'+KERNEL or not set(OPTIONS).issubset(linux[0]):
+        raise RuntimeError('Could not verify the kernel or security parameters of the test entry.')
+    old_initrd = '/boot/initrd.img-'+KERNEL
+    if entry.count(old_initrd)!=1:
+        raise RuntimeError('Unexpected initramfs entry.')
+    entry = entry.replace(old_initrd,IMAGE)
+    (stage/'test-entry.cfg').write_text(entry)
+    run('grub-script-check',str(stage/'test-entry.cfg'))
+    script = ('#!/bin/sh\n# Optional VMD MTL016 test; no change to the default entry.\n'
+              +'test -f '+shlex.quote('/boot/vmlinuz-'+KERNEL)+' || exit 0\n'
+              +'test -f '+shlex.quote(IMAGE)+' || exit 0\n'
+              +"cat <<'EXPERTBOOK_VMD_TEST_EOF'\n"+entry+'EXPERTBOOK_VMD_TEST_EOF\n')
+    (stage/'43_expertbook_vmd_test').write_text(script)
+    run('/bin/sh','-n',str(stage/'43_expertbook_vmd_test'))
+    for path,expected in hashes.items():
+        if sha(path)!=expected:
+            raise RuntimeError('A protected system file has changed: '+path)
+    (stage/'kernel-before.txt').write_text(run('dmesg','--color=never'))
+    (stage/'boot-time.txt').write_text(run('systemd-analyze','time'))
+    result={'stage':str(stage),'kernel':KERNEL,'module_version':VERSION,'signer':signer,
+            'initramfs_sha256':sha(initrd),'module_sha256':sha(stage/'vmd.ko.xz'),
+            'menu_script_sha256':sha(stage/'43_expertbook_vmd_test'),
+            'protected_sha256':hashes,'security_options':OPTIONS,
+            'original_entry':original,'test_image_destination':IMAGE,
+            'installed':False,'runtime_tested':False,'default_boot_unchanged':True}
+    (stage/'verification.json').write_text(json.dumps(result,indent=2)+'\n')
+    # Only the small review report and menu preview are made user-readable.
+    for name,data in [('prepared.json',json.dumps(result,indent=2)+'\n'),('test-entry.cfg',entry)]:
+        target=BASE/name
+        if target.is_symlink(): raise RuntimeError('The report destination is a symbolic link: '+str(target))
+        target.write_text(data); target.chmod(0o600); os.chown(target, 0, 0)
+    print(json.dumps({k:v for k,v in result.items() if k not in ('protected_sha256','original_entry','security_options')},indent=2),flush=True)
+    print('Prepared and verified; the test boot entry was not installed and no driver was loaded.',flush=True)
+
+
+if __name__=='__main__':
+    try: main()
+    except Exception as error:
+        print('Error: '+str(error),file=sys.stderr); sys.exit(1)

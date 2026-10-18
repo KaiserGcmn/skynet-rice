@@ -1,0 +1,22 @@
+[Unit]
+Description=Connect ExpertBook speaker mute LED to the sound card
+After=systemd-modules-load.service alsa-restore.service sound.target
+ConditionPathExists=/sys/class/dmi/id/product_name
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/expertbook-mute-led
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectControlGroups=yes
+ProtectKernelLogs=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX
+CapabilityBoundingSet=CAP_SYS_MODULE
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

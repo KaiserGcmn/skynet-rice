@@ -1,0 +1,14 @@
+#!/bin/sh
+# Run on the login VT. Debian startx automatically supplies vtN and -keeptty.
+set -eu
+if [ "$#" -eq 0 ]; then
+    printf '%s\n' 'No X11 session command was supplied.' >&2
+    exit 1
+fi
+export XDG_SESSION_TYPE=x11
+case "$*" in
+    'dbus-run-session dwm'|dwm)
+        export DESKTOP_SESSION=dwm XDG_SESSION_DESKTOP=dwm XDG_CURRENT_DESKTOP=dwm
+        ;;
+esac
+exec /usr/bin/startx /usr/local/libexec/greetd/session-x "$@" -- -nolisten tcp

@@ -1,0 +1,1682 @@
+[
+  {
+    "source": "/usr/local/src/dwm/LICENSE",
+    "destination": "sources/dwm/LICENSE",
+    "sha256": "838d4c22db72e832aa6cf055e777c109e7cadec6dc21c490c7c286dd061c5c39"
+  },
+  {
+    "source": "/usr/local/src/dwm/Makefile",
+    "destination": "sources/dwm/Makefile",
+    "sha256": "e309dfe8c35f14a52f8f175d6efd512ad8cbc91318cfc9a142c7f07eab5ec2d4"
+  },
+  {
+    "source": "/usr/local/src/dwm/README",
+    "destination": "sources/dwm/README",
+    "sha256": "f0384e29e3f249fcd52a30c35c722fca50e9fabfdeb7725f4073e05170358d86"
+  },
+  {
+    "source": "/usr/local/src/dwm/REDLINE.md",
+    "destination": "sources/dwm/REDLINE.md",
+    "sha256": "a233d888e0fd656419b17991b331433ba1e2b054b598571bacad9e814e78711a"
+  },
+  {
+    "source": "/usr/local/src/dwm/config.def.h",
+    "destination": "sources/dwm/config.def.h",
+    "sha256": "a84ed5587a55d6b21bcc423357fc7219d95fb46eeb166135116f73e7ee1db341"
+  },
+  {
+    "source": "/usr/local/src/dwm/config.h",
+    "destination": "sources/dwm/config.h",
+    "sha256": "69657e61a5cdf30b3ff193f676364997f87142b837a8cfdf6b8e781049516842"
+  },
+  {
+    "source": "/usr/local/src/dwm/config.mk",
+    "destination": "sources/dwm/config.mk",
+    "sha256": "f39d0e0a604b2c3e9b09a880079de38df8e08ee19855ed808a3207d98a431212"
+  },
+  {
+    "source": "/usr/local/src/dwm/drw.c",
+    "destination": "sources/dwm/drw.c",
+    "sha256": "63bf5245e9119c0f2c832728d7a1b01889690a848f8b805c1dbc644dc9db1b43"
+  },
+  {
+    "source": "/usr/local/src/dwm/drw.h",
+    "destination": "sources/dwm/drw.h",
+    "sha256": "ea7e749a7a7c13558da815a7358d2d7480ac3bb08e6aa83c6cb95e4e631bd5a7"
+  },
+  {
+    "source": "/usr/local/src/dwm/dwm.1",
+    "destination": "sources/dwm/dwm.1",
+    "sha256": "053735bec3afe80c51d6b9fcd392937288f9dfdcf7b0318e97488d1b1d434e6e"
+  },
+  {
+    "source": "/usr/local/src/dwm/dwm.c",
+    "destination": "sources/dwm/dwm.c",
+    "sha256": "18d3ade1a75957a428e07156cc5c776eceb8bb8cfead032e351edac614a237e6"
+  },
+  {
+    "source": "/usr/local/src/dwm/dwm.png",
+    "destination": "sources/dwm/dwm.png",
+    "sha256": "b608fe5d3e221f8867f5d3c7907071d31145b04ff96bfe08c734fede02e2ff38"
+  },
+  {
+    "source": "/usr/local/src/dwm/patches/dwm-autostart-20210120-cb3f58a.diff",
+    "destination": "sources/dwm/patches/dwm-autostart-20210120-cb3f58a.diff",
+    "sha256": "d78711587e6d554de5dc47adca00fc1eb6c8f8ca11c9e75411da8da60eae7abe"
+  },
+  {
+    "source": "/usr/local/src/dwm/patches/dwm-systray-6.8.diff",
+    "destination": "sources/dwm/patches/dwm-systray-6.8.diff",
+    "sha256": "68b1212583f3f26c54c7e29f657ebd4e41fc79447c6e85db3275482acef141a8"
+  },
+  {
+    "source": "/usr/local/src/dwm/transient.c",
+    "destination": "sources/dwm/transient.c",
+    "sha256": "54c37c558613ab3da856b19c4b4c0c56c224133a253bf5fa6557b489da545d7c"
+  },
+  {
+    "source": "/usr/local/src/dwm/util.c",
+    "destination": "sources/dwm/util.c",
+    "sha256": "8a83a9c04e70fa9100f7aa9cca4f95d2cf4f07d19360807c34f45fa44631021b"
+  },
+  {
+    "source": "/usr/local/src/dwm/util.h",
+    "destination": "sources/dwm/util.h",
+    "sha256": "4316f65b085e7ef78c4e5a77244e62c4cd500911c3b4087f853f326069b437f7"
+  },
+  {
+    "source": "/usr/local/src/dmenu/LICENSE",
+    "destination": "sources/dmenu/LICENSE",
+    "sha256": "9f8e922fcfc18ffcc4975dd0b1bee38302bd4e0c538251dfef6d77cd7ed59c89"
+  },
+  {
+    "source": "/usr/local/src/dmenu/Makefile",
+    "destination": "sources/dmenu/Makefile",
+    "sha256": "0835a9f1d95f574549d8e2138fd6d25b8ddca5e7cfaffa275a9c7b6c9b6eb2e0"
+  },
+  {
+    "source": "/usr/local/src/dmenu/README",
+    "destination": "sources/dmenu/README",
+    "sha256": "ec98e8759049af796598f0790752a21a69eaea1d438b09c39922d4a9f4a7cfe2"
+  },
+  {
+    "source": "/usr/local/src/dmenu/arg.h",
+    "destination": "sources/dmenu/arg.h",
+    "sha256": "9ed2b2e3396fdebc8ecab2cdbb09db115cca015f63ec0443b8ccc56340b6b03c"
+  },
+  {
+    "source": "/usr/local/src/dmenu/config.def.h",
+    "destination": "sources/dmenu/config.def.h",
+    "sha256": "7720b411b3bd1da5ee547711c03a10bcf456bf235c44f624e83108ea6b9f53ed"
+  },
+  {
+    "source": "/usr/local/src/dmenu/config.h",
+    "destination": "sources/dmenu/config.h",
+    "sha256": "6916650371d9f25cd0ebfcffcd62f2880deda2b7c9f33465fa4833cf335b2dcc"
+  },
+  {
+    "source": "/usr/local/src/dmenu/config.mk",
+    "destination": "sources/dmenu/config.mk",
+    "sha256": "36807d465ce23ed6a967b22a856a90375ea79bcd1d50f5a50a9bcc31b4469332"
+  },
+  {
+    "source": "/usr/local/src/dmenu/dmenu.1",
+    "destination": "sources/dmenu/dmenu.1",
+    "sha256": "80eddef016133020b64d692c05070433b936435f2e5103bf9ab815ae6158b878"
+  },
+  {
+    "source": "/usr/local/src/dmenu/dmenu.c",
+    "destination": "sources/dmenu/dmenu.c",
+    "sha256": "592d6c166edde0c74281d8aa558fbaeada574052ffd38e62d8594a43cfb1fbf9"
+  },
+  {
+    "source": "/usr/local/src/dmenu/dmenu_path",
+    "destination": "sources/dmenu/dmenu_path",
+    "sha256": "a3f19e648e20eb80532dfe87e9bd9feeaa92df838e6ecc061f274c9da579d617"
+  },
+  {
+    "source": "/usr/local/src/dmenu/dmenu_run",
+    "destination": "sources/dmenu/dmenu_run",
+    "sha256": "564035fd8a8ade6504521d98fa10e8732e135403d546d04ca77316fe4a67b21c"
+  },
+  {
+    "source": "/usr/local/src/dmenu/drw.c",
+    "destination": "sources/dmenu/drw.c",
+    "sha256": "63bf5245e9119c0f2c832728d7a1b01889690a848f8b805c1dbc644dc9db1b43"
+  },
+  {
+    "source": "/usr/local/src/dmenu/drw.h",
+    "destination": "sources/dmenu/drw.h",
+    "sha256": "292041b6b267b182ae956a1125a0c449d5ca8957a77823aa7c55af61e9f32ab2"
+  },
+  {
+    "source": "/usr/local/src/dmenu/stest.1",
+    "destination": "sources/dmenu/stest.1",
+    "sha256": "00d3389ef8858a565cf3fb3445620b90eb67d1a9b31434f4d54b05ed6c5abefb"
+  },
+  {
+    "source": "/usr/local/src/dmenu/stest.c",
+    "destination": "sources/dmenu/stest.c",
+    "sha256": "ba76404e61abbd734e315999ffe4e883419c4c69ff17a5d4d88a5cd11dd4b055"
+  },
+  {
+    "source": "/usr/local/src/dmenu/util.c",
+    "destination": "sources/dmenu/util.c",
+    "sha256": "8a83a9c04e70fa9100f7aa9cca4f95d2cf4f07d19360807c34f45fa44631021b"
+  },
+  {
+    "source": "/usr/local/src/dmenu/util.h",
+    "destination": "sources/dmenu/util.h",
+    "sha256": "4316f65b085e7ef78c4e5a77244e62c4cd500911c3b4087f853f326069b437f7"
+  },
+  {
+    "source": "/usr/local/src/slstatus/LICENSE",
+    "destination": "sources/slstatus/LICENSE",
+    "sha256": "896c1425bbbcf47a7f9fc40d919eeba9cb83728951c048611c722eea21b5ba4d"
+  },
+  {
+    "source": "/usr/local/src/slstatus/Makefile",
+    "destination": "sources/slstatus/Makefile",
+    "sha256": "34c8d1ad7836ea7313370b03ce44a2e0d124472169ad9b4d457109f891da2c14"
+  },
+  {
+    "source": "/usr/local/src/slstatus/README",
+    "destination": "sources/slstatus/README",
+    "sha256": "b244af6a5e96e5a74e3952a012ec8f5ee13a6d5c8a94a9638b8aeaf54df2512c"
+  },
+  {
+    "source": "/usr/local/src/slstatus/arg.h",
+    "destination": "sources/slstatus/arg.h",
+    "sha256": "79d1ef01741b60ce30d4909ff64456d39015bfaa688ad1c00f46aa457ba70036"
+  },
+  {
+    "source": "/usr/local/src/slstatus/components/battery.c",
+    "destination": "sources/slstatus/components/battery.c",
+    "sha256": "ddc44b3543a34c76e4047e13497cd1c742ed7d332d7d6bb5ca5ccd709f80bab9"
+  },
+  {
+    "source": "/usr/local/src/slstatus/components/cat.c",
+    "destination": "sources/slstatus/components/cat.c",
+    "sha256": "69f977e6582238fc31fc33bef145abbb0cb8aa8db4a5c3e4826ffaaea41b9e90"
+  },
+  {
+    "source": "/usr/local/src/slstatus/components/cpu.c",
+    "destination": "sources/slstatus/components/cpu.c",
+    "sha256": "2fd3d1a9b03845133e50c55935f645cfbe149764a1134c046bd0d7c85a901029"
+  },
+  {
+    "source": "/usr/local/src/slstatus/components/datetime.c",
+    "destination": "sources/slstatus/components/datetime.c",
+    "sha256": "4712e52b85dc8a9f65d2e2eb3c76bc321b9f39dace639d2b7539a95850bbc46e"
+  },
+  {
+    "source": "/usr/local/src/slstatus/components/disk.c",
+    "destination": "sources/slstatus/components/disk.c",
+    "sha256": "f0da58455b0ace8932955ff6e5d71814ac6999350d8a6be79e553ba32b0588ea"
+  },
+  {
+    "source": "/usr/local/src/slstatus/components/entropy.c",
+    "destination": "sources/slstatus/components/entropy.c",
+    "sha256": "1a40c9d9c2e706155c218832f35d487ae02a988625227aff2143f2f052a45336"
+  },
+  {
+    "source": "/usr/local/src/slstatus/components/hostname.c",
+    "destination": "sources/slstatus/components/hostname.c",
+    "sha256": "f311dc607ab931cd0bf8fb0eaed8d9d7300569745221422a6a207d4c337d24a8"
+  },
+  {
+    "source": "/usr/local/src/slstatus/components/ip.c",
+    "destination": "sources/slstatus/components/ip.c",
+    "sha256": "c3c23500ecde3dc1f951770a974f55f6b588e55f78159b99a3499cd43da2e4f4"
+  },
+  {
+    "source": "/usr/local/src/slstatus/components/kernel_release.c",
+    "destination": "sources/slstatus/components/kernel_release.c",
+    "sha256": "ab2981bf42a0a2887de6202d0552847909bbba8e93c9c918fec6cdd71c92d0f7"
+  },
+  {
+    "source": "/usr/local/src/slstatus/components/keyboard_indicators.c",
+    "destination": "sources/slstatus/components/keyboard_indicators.c",
+    "sha256": "05d21fcd280908061f240047203907c9c99a757ad28a26021e4bdcff3c120ff5"
+  },
+  {
+    "source": "/usr/local/src/slstatus/components/keymap.c",
+    "destination": "sources/slstatus/components/keymap.c",
+    "sha256": "df5b3734619f200b4b58032b9cfa3213ff45232eeb01ded8d1b721f5e7bbaf81"
+  },
+  {
+    "source": "/usr/local/src/slstatus/components/load_avg.c",
+    "destination": "sources/slstatus/components/load_avg.c",
+    "sha256": "e7ac4bb603819d0110bf6e22a3a9bb346b93dc57c86919dd0aceb4d10f22fe3c"
+  },
+  {
+    "source": "/usr/local/src/slstatus/components/netspeeds.c",
+    "destination": "sources/slstatus/components/netspeeds.c",
+    "sha256": "1cccc3ac6f2b8cca6b255e04c665c44ffb9ca6e530164543a7f80fd9994c1e71"
+  },
+  {
+    "source": "/usr/local/src/slstatus/components/num_files.c",
+    "destination": "sources/slstatus/components/num_files.c",
+    "sha256": "af66ad8b28fb33ad80dabecb041dea9a1b28d03028360e2f96fc6c3c9bc8b88c"
+  },
+  {
+    "source": "/usr/local/src/slstatus/components/ram.c",
+    "destination": "sources/slstatus/components/ram.c",
+    "sha256": "f086d727193e95cc34b891236baadd954bf7eaf24492055685e30cce499107b4"
+  },
+  {
+    "source": "/usr/local/src/slstatus/components/run_command.c",
+    "destination": "sources/slstatus/components/run_command.c",
+    "sha256": "4394802adaa28933b1109180d00ec16bcd0cf8371bd69d69ed77a1fb21918776"
+  },
+  {
+    "source": "/usr/local/src/slstatus/components/swap.c",
+    "destination": "sources/slstatus/components/swap.c",
+    "sha256": "a4edb9ebfbc41622e73f4e283146e5d2d201870f0d7e3248a8b464f9169f4fbb"
+  },
+  {
+    "source": "/usr/local/src/slstatus/components/temperature.c",
+    "destination": "sources/slstatus/components/temperature.c",
+    "sha256": "4d4e091d0f517b576389f6dd48c2f76c3a5b6b53dd625f2a6128d2646112e91c"
+  },
+  {
+    "source": "/usr/local/src/slstatus/components/uptime.c",
+    "destination": "sources/slstatus/components/uptime.c",
+    "sha256": "abb02a166e5289be951247dc077a04abc44c8c974912eba75f431c216c3c27a8"
+  },
+  {
+    "source": "/usr/local/src/slstatus/components/user.c",
+    "destination": "sources/slstatus/components/user.c",
+    "sha256": "f08549f74b4e1325fea8d9807cb2ba76d2e9205708979a405bbbfadd7ff0093b"
+  },
+  {
+    "source": "/usr/local/src/slstatus/components/volume.c",
+    "destination": "sources/slstatus/components/volume.c",
+    "sha256": "86c2edf501ffd2e72a21e2f74ad18da7e27b2842269f43bb3db4ed68e4590010"
+  },
+  {
+    "source": "/usr/local/src/slstatus/components/wifi.c",
+    "destination": "sources/slstatus/components/wifi.c",
+    "sha256": "5091283a04e98075787edf5fe680a4024d886d03be0d4c5c6558fe923b3ae5a5"
+  },
+  {
+    "source": "/usr/local/src/slstatus/config.def.h",
+    "destination": "sources/slstatus/config.def.h",
+    "sha256": "80b5c721ae797b236e2537bc96f027b3025972cb7243b4c77748d43b5b8ff697"
+  },
+  {
+    "source": "/usr/local/src/slstatus/config.h",
+    "destination": "sources/slstatus/config.h",
+    "sha256": "b1ba265f60bef8020d94f420a50b5d765d86b5985bb2ef099dd88f0d42c8f053"
+  },
+  {
+    "source": "/usr/local/src/slstatus/config.mk",
+    "destination": "sources/slstatus/config.mk",
+    "sha256": "46f46c5b0d46252517256f0cb7d23358b14c66bd02f71bfce94a0906711e9017"
+  },
+  {
+    "source": "/usr/local/src/slstatus/slstatus.1",
+    "destination": "sources/slstatus/slstatus.1",
+    "sha256": "188418832be4fc96b3c91d3daa8227720370f7ab9c9c1412196d76c820e910a5"
+  },
+  {
+    "source": "/usr/local/src/slstatus/slstatus.c",
+    "destination": "sources/slstatus/slstatus.c",
+    "sha256": "7828a9fe2313084cbdf731a9e24a29b18eaa20f09a4a96bb7c77582aecedee72"
+  },
+  {
+    "source": "/usr/local/src/slstatus/slstatus.h",
+    "destination": "sources/slstatus/slstatus.h",
+    "sha256": "15a73ce278bcd5ceb3b2e77640ace431e67f52322c52c865d40d7a97fa835cac"
+  },
+  {
+    "source": "/usr/local/src/slstatus/util.c",
+    "destination": "sources/slstatus/util.c",
+    "sha256": "d51f3b24f2226ec13a04cc3797c94e34469cea9477e6dd28d645013fff30b116"
+  },
+  {
+    "source": "/usr/local/src/slstatus/util.h",
+    "destination": "sources/slstatus/util.h",
+    "sha256": "584fc336e15c278d2b764921e41a69cdd7203ab7457135536334b61a90f91886"
+  },
+  {
+    "source": "/usr/local/src/gtkgreet-skynet/LICENSE",
+    "destination": "sources/gtkgreet-skynet/LICENSE",
+    "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+  },
+  {
+    "source": "/usr/local/src/gtkgreet-skynet/Makefile",
+    "destination": "sources/gtkgreet-skynet/Makefile",
+    "sha256": "41ff34626fce7dcaab2d6e29bc0a1ee395d2752cac74c632b23ebf585f72fd14"
+  },
+  {
+    "source": "/usr/local/src/gtkgreet-skynet/README.local.md",
+    "destination": "sources/gtkgreet-skynet/README.local.md",
+    "sha256": "0e11ce986a263ab5fa99a726a017433a3dad61808174e0692f2e3fa952ac4f5b"
+  },
+  {
+    "source": "/usr/local/src/gtkgreet-skynet/actions.c",
+    "destination": "sources/gtkgreet-skynet/actions.c",
+    "sha256": "1aff06b63579e01aa2ac25a9b473b2c1a3434477e3c1f6dfaf0678189705b8b9"
+  },
+  {
+    "source": "/usr/local/src/gtkgreet-skynet/actions.h",
+    "destination": "sources/gtkgreet-skynet/actions.h",
+    "sha256": "5729ca6c53cd05a2ce0f79ea624f9ee53879d8a51efdff2fbfda3f10f649f91b"
+  },
+  {
+    "source": "/usr/local/src/gtkgreet-skynet/battery-status.h",
+    "destination": "sources/gtkgreet-skynet/battery-status.h",
+    "sha256": "41df79dfbcd0b751a31107339f53177be6c305c0a9564986f95fa36c6bf3ba29"
+  },
+  {
+    "source": "/usr/local/src/gtkgreet-skynet/config.c",
+    "destination": "sources/gtkgreet-skynet/config.c",
+    "sha256": "7dca6dfbc29282af5a6c77b65c1a3f1f1278bdab25133afe1f27f64a65ca3ed4"
+  },
+  {
+    "source": "/usr/local/src/gtkgreet-skynet/config.h",
+    "destination": "sources/gtkgreet-skynet/config.h",
+    "sha256": "02f58092fe73c3f859bd352e71f33d93f63d4237b9f23f35da1990b4043ece05"
+  },
+  {
+    "source": "/usr/local/src/gtkgreet-skynet/gtkgreet.c",
+    "destination": "sources/gtkgreet-skynet/gtkgreet.c",
+    "sha256": "4d22f3620326022ea4e983c78e10295d1d9374bb25f7d97ebc3050dce4d0a87e"
+  },
+  {
+    "source": "/usr/local/src/gtkgreet-skynet/gtkgreet.h",
+    "destination": "sources/gtkgreet-skynet/gtkgreet.h",
+    "sha256": "70c7491ceeaf27787c0cec18d9299a9a78a9ce07323917418049af7a727eb36d"
+  },
+  {
+    "source": "/usr/local/src/gtkgreet-skynet/main.c",
+    "destination": "sources/gtkgreet-skynet/main.c",
+    "sha256": "3179845f8e624ff71cd3de0800d58f0dc0c865c0cd54545e9b8a2daf570b45e2"
+  },
+  {
+    "source": "/usr/local/src/gtkgreet-skynet/proto.c",
+    "destination": "sources/gtkgreet-skynet/proto.c",
+    "sha256": "d97ebffcef69b070d5e97e4bd99e5dd44492a888bb04eac72fe7b033708f0a69"
+  },
+  {
+    "source": "/usr/local/src/gtkgreet-skynet/proto.h",
+    "destination": "sources/gtkgreet-skynet/proto.h",
+    "sha256": "d1f570df139d6f9b25ed3537f76d7dd99d70a67f38b4676c1de104e049a54ff8"
+  },
+  {
+    "source": "/usr/local/src/gtkgreet-skynet/skynet-logo.h",
+    "destination": "sources/gtkgreet-skynet/skynet-logo.h",
+    "sha256": "e07129848e882ae5fa1bb159569a8b960794be9236e426a89973d2d0f11f1a88"
+  },
+  {
+    "source": "/usr/local/src/gtkgreet-skynet/skynet-ui.h",
+    "destination": "sources/gtkgreet-skynet/skynet-ui.h",
+    "sha256": "29ac12ab494fbf34bc07db410785523526df4355009749af08e792dd4ec966e6"
+  },
+  {
+    "source": "/usr/local/src/gtkgreet-skynet/window.c",
+    "destination": "sources/gtkgreet-skynet/window.c",
+    "sha256": "0e0b0fcc91a1fd58a86699b35fa16fa2562656ca2ebea286184fa9468d66bf30"
+  },
+  {
+    "source": "/usr/local/src/gtkgreet-skynet/window.h",
+    "destination": "sources/gtkgreet-skynet/window.h",
+    "sha256": "44b9df978b208d206f41d7dc63c6d45354bb1fc1403385e6c311e22e82f8be0a"
+  },
+  {
+    "source": "/usr/local/src/xsecurelock-power/LICENSE",
+    "destination": "sources/xsecurelock-power/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+  },
+  {
+    "source": "/usr/local/src/xsecurelock-power/README.local.md",
+    "destination": "sources/xsecurelock-power/README.local.md",
+    "sha256": "71537e2599e36ecf67db34627b41e5f858dfa8dbf5e4845a722dbdae476d1b37"
+  },
+  {
+    "source": "/usr/local/src/xsecurelock-power/dwm-session-lock.py",
+    "destination": "sources/xsecurelock-power/dwm-session-lock.py",
+    "sha256": "14d04d722b2296a9138f88643629eb5a1e949bba83b7dbf1576158c78db3ce56"
+  },
+  {
+    "source": "/usr/local/src/xsecurelock-power/local-changes.patch",
+    "destination": "sources/xsecurelock-power/local-changes.patch",
+    "sha256": "09b2b4c6dd1164968fa98d5be9ff912a94914d1ce6d55b401bcf7762c2cce3fc"
+  },
+  {
+    "source": "/usr/local/src/xsecurelock-style/battery-status.h",
+    "destination": "sources/xsecurelock-style/battery-status.h",
+    "sha256": "41df79dfbcd0b751a31107339f53177be6c305c0a9564986f95fa36c6bf3ba29"
+  },
+  {
+    "source": "/usr/local/src/xsecurelock-style/render-style.py",
+    "destination": "sources/xsecurelock-style/render-style.py",
+    "sha256": "fc0ffa6ceeafd80742836ea316148571c4522125fa2682aa5d19468b02268da0"
+  },
+  {
+    "source": "/usr/local/src/xsecurelock-style/saver-lock-style.c",
+    "destination": "sources/xsecurelock-style/saver-lock-style.c",
+    "sha256": "4756e1ed7f98519484f03339e6e95c52787d189b7b48172c18823d06c98a42e2"
+  },
+  {
+    "source": "/usr/local/src/xsecurelock-style/skynet-logo.h",
+    "destination": "sources/xsecurelock-style/skynet-logo.h",
+    "sha256": "cf20d40fad794c0d9265e2ad637d620d74c9b82e88ca7d82bf454b8840a1aa94"
+  },
+  {
+    "source": "/usr/local/src/xsecurelock-style/tuigreet-battery.c",
+    "destination": "sources/xsecurelock-style/tuigreet-battery.c",
+    "sha256": "5b5cb2db208835a36f2ec7fd64a829a6da750f1f1ee9fa889fe7b8d4d811d463"
+  },
+  {
+    "source": "/usr/local/src/audio-mute-state/README.md",
+    "destination": "sources/audio-mute-state/README.md",
+    "sha256": "b1ce24e0008620dad05be1151a5fd9e286a3c11c9640f4b1c105e452cdb04e24"
+  },
+  {
+    "source": "/usr/local/src/audio-mute-state/audio_mute_state.py",
+    "destination": "sources/audio-mute-state/audio_mute_state.py",
+    "sha256": "9eead37680d4417cf104bd0e14fe9f142b2cdb31ae135c4ca943ef98d66e5f8e"
+  },
+  {
+    "source": "/usr/local/src/audio-mute-state/test_audio_mute_state.py",
+    "destination": "sources/audio-mute-state/test_audio_mute_state.py",
+    "sha256": "5480b6f86255c7360c9479a68d4ef436c7bb85298767b2abb6c5d643d8633f86"
+  },
+  {
+    "source": "/usr/local/src/xwinwrap/Makefile",
+    "destination": "sources/xwinwrap/Makefile",
+    "sha256": "5e2e1357a20d22e4bc03190b208e4c2aad9e905dde6f0bfd715eb091d5cd8e3b"
+  },
+  {
+    "source": "/usr/local/src/xwinwrap/README.md",
+    "destination": "sources/xwinwrap/README.md",
+    "sha256": "83144285d1da81e5ee44b32df65655911f69b3bed31c4c03f39359264b42f2ef"
+  },
+  {
+    "source": "/usr/local/src/xwinwrap/examples/mint_auto_start_example.sh",
+    "destination": "sources/xwinwrap/examples/mint_auto_start_example.sh",
+    "sha256": "3e4ee83dbfe759a75262c6f6e4270f27abdf3a3fc80d431588d77c1acde2dcde"
+  },
+  {
+    "source": "/usr/local/src/xwinwrap/xwinwrap.c",
+    "destination": "sources/xwinwrap/xwinwrap.c",
+    "sha256": "00b7ec706bad901a3d224653575d8d05e878e3b4535844a624f73ceff29e04e8"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/Android.mk",
+    "destination": "drivers/rtw88/Android.mk",
+    "sha256": "805f72077148c65a2019ff1cf53561d25885947b8a65cf09e97c78beaf7b300d"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/Makefile",
+    "destination": "drivers/rtw88/Makefile",
+    "sha256": "bdec4205eb7b046934ddbdfac963a359461c77724fd27b4e77d431755134f257"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/README.md",
+    "destination": "drivers/rtw88/README.md",
+    "sha256": "40245fd350c1b59e5b2d3f60e8d8c2e6057135f3273a22d3b95950c1c75e4b66"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/bf.c",
+    "destination": "drivers/rtw88/bf.c",
+    "sha256": "bd364e300e7b754550f6a8e6004d582fee4dc9b34a4c7e4b8289f7ce11d8f26b"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/bf.h",
+    "destination": "drivers/rtw88/bf.h",
+    "sha256": "f2a98c7fb254b9c467ab1ccf1d0cf6c438d15c8845d47ca91fa8205d06f69c0a"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/bitfield.h",
+    "destination": "drivers/rtw88/bitfield.h",
+    "sha256": "0dfd69747c8a813fedc83dc3999500f0ec071ddc846d206925715e14bbd6ed55"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/coex.c",
+    "destination": "drivers/rtw88/coex.c",
+    "sha256": "5e1f92aba4bc5491285cc2e8d40e46a522539d339d1ec9fefaaa789e89a9708f"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/coex.h",
+    "destination": "drivers/rtw88/coex.h",
+    "sha256": "047aa0d252aee946869be49960129a52b5132528563ed52d9355e2b9870b3800"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/compiler.h",
+    "destination": "drivers/rtw88/compiler.h",
+    "sha256": "6b50ae86b2dbaef253f0fa16b859c9a172b1b1e1328f7d4ea2c3dc87008698b0"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/convert_firmware.c",
+    "destination": "drivers/rtw88/convert_firmware.c",
+    "sha256": "e9394a94e866801514ff09e3acaddca052c647f8f53c9c14e1832520dd5335ed"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/convert_firmware.h",
+    "destination": "drivers/rtw88/convert_firmware.h",
+    "sha256": "45ea598a727218af6b5bf2a2f5d2541aea30c8d00f7e148c0b7703df9f213de9"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/debug.c",
+    "destination": "drivers/rtw88/debug.c",
+    "sha256": "7cca43fbf2f1a226edcdf0b611c38f67bc099a751f3d57d7c8690458801187be"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/debug.h",
+    "destination": "drivers/rtw88/debug.h",
+    "sha256": "bfbd502deeaa8380e7b05d9d96e34577d563681863bb2bef48bd36a0b4a14065"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/dkms.conf",
+    "destination": "drivers/rtw88/dkms.conf",
+    "sha256": "6c92838bbe0a36a8c777f08de2d121a404affdf8bc98208d841316c91eb212b3"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/efuse.c",
+    "destination": "drivers/rtw88/efuse.c",
+    "sha256": "2120e85547a1f622a5248eeeffd96e068d552d326809bc64488b8c84b21daff5"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/efuse.h",
+    "destination": "drivers/rtw88/efuse.h",
+    "sha256": "9a7ca402cd372484c180d8b046da53e2d320e6bbad32243456dd6119b2a71f15"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/fw.c",
+    "destination": "drivers/rtw88/fw.c",
+    "sha256": "f23e3300256244a4861d47901ddf3292424e55a10d26ac94d05dd7cc027d7cfb"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/fw.h",
+    "destination": "drivers/rtw88/fw.h",
+    "sha256": "e0dc70dd6a6bb50a30c8f330d29d0ad5d8d9495131d760c76aa4c40a9dd62bcd"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/hci.h",
+    "destination": "drivers/rtw88/hci.h",
+    "sha256": "6d50e103fdb69df2e333be92237262f753f92f3ac8e3e37255dfedb0e3801cd7"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/led.c",
+    "destination": "drivers/rtw88/led.c",
+    "sha256": "d4d58c183db56379292a43c9bafd6b0fbcdbc4aa2c3c76c428ac87c5e5b20aa8"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/led.h",
+    "destination": "drivers/rtw88/led.h",
+    "sha256": "49eeb6f3fa6229047bbf0c49ff81bea43751b0b4eb9cb8128b0c7941a3304c26"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/mac.c",
+    "destination": "drivers/rtw88/mac.c",
+    "sha256": "d87f2c90a98d5e717f038e4144344b29a54861992fe53a56c735456a1ac11b0b"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/mac.h",
+    "destination": "drivers/rtw88/mac.h",
+    "sha256": "006c62b0d7b7a6dee95cc27172c0452bcfa6b05f80a1a91610c4750f42f4c91a"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/mac80211.c",
+    "destination": "drivers/rtw88/mac80211.c",
+    "sha256": "7a4918c3299600c1b5abc24419eb015b055d08915d006528bb1075f274fae40d"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/main.c",
+    "destination": "drivers/rtw88/main.c",
+    "sha256": "85f0d42a0fb2a97a96bdec2ac462e7587dac9c15d3232067dfaf8dddc4a817d7"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/main.h",
+    "destination": "drivers/rtw88/main.h",
+    "sha256": "b5cc60af7981db4b4cdd34ecad7c624e19e86515dbb262a8606dd246a6cb8787"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/pci.c",
+    "destination": "drivers/rtw88/pci.c",
+    "sha256": "80fff6f68045304f28ac134fca2967fea530a03543a3b8b0c2d90af66ffdc5f0"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/pci.h",
+    "destination": "drivers/rtw88/pci.h",
+    "sha256": "dcaaaffc535ac8b5659f719169e3688d18087f84742bcb76dc909882b4de0829"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/pci_old.c",
+    "destination": "drivers/rtw88/pci_old.c",
+    "sha256": "6971f443cdbed8ef212e07dfd6c89ff4acfd39cb28c77e9e9dd1fecc795c0e45"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/pci_old.h",
+    "destination": "drivers/rtw88/pci_old.h",
+    "sha256": "a72753ef682278a48befa2489dc8d60b78c6ffb84435fe8fbbdf357ce1b2271d"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/phy.c",
+    "destination": "drivers/rtw88/phy.c",
+    "sha256": "1cdf995ec41b76132ac7c71625d052de3ecba0e705f0e716f53fc7800ba254ee"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/phy.h",
+    "destination": "drivers/rtw88/phy.h",
+    "sha256": "55388bdbec3b743553776282b918d2f6ffe06d4ac1d8849cf0ea0e22f19867e4"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/ps.c",
+    "destination": "drivers/rtw88/ps.c",
+    "sha256": "b6b57a5e232be2fea9a84f2f58a5ab97516de2a58882fccfd158b42c7a63f6c5"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/ps.h",
+    "destination": "drivers/rtw88/ps.h",
+    "sha256": "4f0e986a7ccd1ec9b392bb7f8235077defe4cad2db49568d339b77b9529f3f15"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/reg.h",
+    "destination": "drivers/rtw88/reg.h",
+    "sha256": "842dfc68b2ba48f9a1cde1c68d9cadf24ac62d1aa70892925580739b1a97f29b"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/regd.c",
+    "destination": "drivers/rtw88/regd.c",
+    "sha256": "d12704ef1123132bd881d5831f4d996a0e0dab5a81a460ed87baac671ca7fd0d"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/regd.h",
+    "destination": "drivers/rtw88/regd.h",
+    "sha256": "9e8dbbb28a3dac8341c05beccf3656cf2598b755ef4bd6d4e654e10029ba3d40"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8703b.c",
+    "destination": "drivers/rtw88/rtw8703b.c",
+    "sha256": "9b928bbec298ee03b8bf8dd5ee9ed13164c8bbbb557ad50f0318f9685053af81"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8703b.h",
+    "destination": "drivers/rtw88/rtw8703b.h",
+    "sha256": "07d3cb11cd97bbcd49e84a8764f2c9a532ac9131fcfec787cc82451bd2aa4c30"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8703b_tables.c",
+    "destination": "drivers/rtw88/rtw8703b_tables.c",
+    "sha256": "96477adda0e3b985f71bd5e839efa21b9809738c0108320d47c4d5f41bb03f8b"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8703b_tables.h",
+    "destination": "drivers/rtw88/rtw8703b_tables.h",
+    "sha256": "0e07139d89bff3ca96941a03f6560d645b1c10381076e925308ec9b7702b05df"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8723cs.c",
+    "destination": "drivers/rtw88/rtw8723cs.c",
+    "sha256": "c38f0ef992d8cc536118d647d53614d977460a30660b0e0fdab00ea48695c368"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8723d.c",
+    "destination": "drivers/rtw88/rtw8723d.c",
+    "sha256": "d1b675e594664d22311d7ea1876f4d33d7a7fbe148c682597a9fe3df26f5f636"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8723d.h",
+    "destination": "drivers/rtw88/rtw8723d.h",
+    "sha256": "4b27cabfd958dcfcde7e790157e9a6493268d03ef1b38168f3ec433244ac2667"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8723d_table.c",
+    "destination": "drivers/rtw88/rtw8723d_table.c",
+    "sha256": "d9d162edd84992158f992a91261e719fc6fa297a0fc77c810cf41573e78f3692"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8723d_table.h",
+    "destination": "drivers/rtw88/rtw8723d_table.h",
+    "sha256": "0b08fad78658675ad192cb1df45873141d278746c19be59b85c44a54716727f9"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8723de.c",
+    "destination": "drivers/rtw88/rtw8723de.c",
+    "sha256": "a2aab50184361b9e205261483021b21982da348ac87555c1ae3e05430b94a2bc"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8723ds.c",
+    "destination": "drivers/rtw88/rtw8723ds.c",
+    "sha256": "38ba33a8110f36d479f50fb38f3855a49fb08f86a0470c2aa7a203d4c3ff6723"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8723du.c",
+    "destination": "drivers/rtw88/rtw8723du.c",
+    "sha256": "4fa6b51f948fa5f69c70bdf031482160546a3c0bdfe4c345068ece44cc6400e2"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8723x.c",
+    "destination": "drivers/rtw88/rtw8723x.c",
+    "sha256": "a72509053708b1b0a02c6f7c5f63b07f34e430325cbfcd2b564cb3607a079081"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8723x.h",
+    "destination": "drivers/rtw88/rtw8723x.h",
+    "sha256": "45baf58d6ac131c4fda34f5f3714ce1506ae7e25506b2c2ad1ac57ee1fb64b92"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8812a.c",
+    "destination": "drivers/rtw88/rtw8812a.c",
+    "sha256": "f5051ff8c03f1915c069a51b3bbc8ccc5a7add49a71187efdac664c5ea78ee14"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8812a.h",
+    "destination": "drivers/rtw88/rtw8812a.h",
+    "sha256": "a1e19bfa6e88cc1b32054a89a412867f05941ed7f2fed4f97fc7391c304637c1"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8812a_table.c",
+    "destination": "drivers/rtw88/rtw8812a_table.c",
+    "sha256": "e400b2daf6824f3c23d8a4f3b02fd396cb19f55f7c59ada570b62e2b442b235d"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8812a_table.h",
+    "destination": "drivers/rtw88/rtw8812a_table.h",
+    "sha256": "0da235f639195eb3fc40c1ea52a1e23d278b65a709a15c3b499dda96a6046412"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8812ae.c",
+    "destination": "drivers/rtw88/rtw8812ae.c",
+    "sha256": "b7e7106a993b60e87d2dffc6ef8400772ecb38e9e50ed350710381c7d3b16081"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8812au.c",
+    "destination": "drivers/rtw88/rtw8812au.c",
+    "sha256": "e3cddcf382437a7d30fa102d44e60c9e17512567081ee5967b63b0797c784718"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8814a.c",
+    "destination": "drivers/rtw88/rtw8814a.c",
+    "sha256": "707cf0ae2ffdabca975260f3db3cab81cde8dd6dce7d981ebab9bc81cf7cb3bf"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8814a.h",
+    "destination": "drivers/rtw88/rtw8814a.h",
+    "sha256": "428343ffcc8535f6f7fbc24b151f62d5d6348265fc2a8ad3e645fe56ce285b56"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8814a_table.c",
+    "destination": "drivers/rtw88/rtw8814a_table.c",
+    "sha256": "40418d3774023b8bdcc17e377ed302ecac03c786a7500c9ee3faac955d40451a"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8814a_table.h",
+    "destination": "drivers/rtw88/rtw8814a_table.h",
+    "sha256": "1edb23d2b2b13f0ba03507d30413b582d0d59455c66c15eba09c5291446bf16a"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8814ae.c",
+    "destination": "drivers/rtw88/rtw8814ae.c",
+    "sha256": "b648baf1d13f6680c311502b8dca25247761a073785526c1a4a0a1c6acc10e0f"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8814au.c",
+    "destination": "drivers/rtw88/rtw8814au.c",
+    "sha256": "d9e395d30637b08df9db0f4213988ef5e5bf0a9b28112b17aa4c791b428ede3f"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8821a.c",
+    "destination": "drivers/rtw88/rtw8821a.c",
+    "sha256": "bf2df050e8467385f94c7a6fdbdf1490773a66bbaff98d7e541b55372317e46d"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8821a.h",
+    "destination": "drivers/rtw88/rtw8821a.h",
+    "sha256": "4547fb41f9eb7763d1c4b578adaabba832558317e3d40af1bc6ee8f8de901b9b"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8821a_table.c",
+    "destination": "drivers/rtw88/rtw8821a_table.c",
+    "sha256": "08fb956aaa71ae0df8651f73c847922bedcfe44c695cdc6867bd3a3900ef2393"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8821a_table.h",
+    "destination": "drivers/rtw88/rtw8821a_table.h",
+    "sha256": "2b121d4f92aa759ef8d70e87251a03303ba7697e2e11512612a2da9a861116e5"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8821ae.c",
+    "destination": "drivers/rtw88/rtw8821ae.c",
+    "sha256": "a8d9f4a383b127d27e82ca6ffd7763012d423a7e41fb878ff78596199706810a"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8821au.c",
+    "destination": "drivers/rtw88/rtw8821au.c",
+    "sha256": "ac4f13624ea94ecadc7dc483cf433132c6ef325e61845949a023c656781d64f7"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8821c.c",
+    "destination": "drivers/rtw88/rtw8821c.c",
+    "sha256": "4f141d67cabb94f914807f4a63f49f386ac7ea201ef3ed7a666885a2e007c958"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8821c.h",
+    "destination": "drivers/rtw88/rtw8821c.h",
+    "sha256": "ab4edfefbe88aeff6b5aec6feb7c77db71418bd3e7ac05d37506d3f42c25dc53"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8821c_table.c",
+    "destination": "drivers/rtw88/rtw8821c_table.c",
+    "sha256": "ebc2547ddd66b7df434e0ef91319eddf5565c452863c4a0fd64660839d3e9a0c"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8821c_table.h",
+    "destination": "drivers/rtw88/rtw8821c_table.h",
+    "sha256": "4a22f6fb769d593568bdea6236d6eaf43b1c34b771f379f4d644df07ca8528c6"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8821ce.c",
+    "destination": "drivers/rtw88/rtw8821ce.c",
+    "sha256": "86b2a648cedf0bb1ec3a268dd28b5fdce01e01f681538f17001080dfa3c96743"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8821cs.c",
+    "destination": "drivers/rtw88/rtw8821cs.c",
+    "sha256": "af1266be9a41b7bc1ce30c9c17e24398d2e1af40e79997ffd3dbc74c3461de69"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8821cu.c",
+    "destination": "drivers/rtw88/rtw8821cu.c",
+    "sha256": "87161e45ce1cc1095730d3323eea1e1b145d61b34112939de10db89adf6716c9"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8822b.c",
+    "destination": "drivers/rtw88/rtw8822b.c",
+    "sha256": "15207a573a3341bd39415cc500e31cb8be0fb266b03897124d75bbbe1c7d18cf"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8822b.h",
+    "destination": "drivers/rtw88/rtw8822b.h",
+    "sha256": "3356219290cbce7689fad3834f6a1be5f66603b260681359d8e7a8a334ea3fa3"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8822b_table.c",
+    "destination": "drivers/rtw88/rtw8822b_table.c",
+    "sha256": "8e58874cfb30a2bcbfe24af93348a56a35f2968fcbf2fbea2e7b48f733d212a7"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8822b_table.h",
+    "destination": "drivers/rtw88/rtw8822b_table.h",
+    "sha256": "81c63b8bc62c465244d876408a14eb50e55f3c5ced0b96dc4cc652dfe6840ec6"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8822be.c",
+    "destination": "drivers/rtw88/rtw8822be.c",
+    "sha256": "ef55078e8a3f939ebdd910621756246e0a1a672881ebf42c8ce2e51c09678e5d"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8822bs.c",
+    "destination": "drivers/rtw88/rtw8822bs.c",
+    "sha256": "abdf455837e79b1e28d9341a03cec753d86c657295fc23e3e79e67b6eee67799"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8822bu.c",
+    "destination": "drivers/rtw88/rtw8822bu.c",
+    "sha256": "f887ae7ff81dc2d0e76268236bce291be8e48850d841fa4a70d8ae75de082569"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8822c.c",
+    "destination": "drivers/rtw88/rtw8822c.c",
+    "sha256": "eedf5d173b5b52c6b088c7c48b7d9c93cf5d06d6d00854cda88fc65e5c02363b"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8822c.h",
+    "destination": "drivers/rtw88/rtw8822c.h",
+    "sha256": "975cb88c627ebabb93729c6b5082a6274a9fe69a11094830db83e95486e93b18"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8822c_table.c",
+    "destination": "drivers/rtw88/rtw8822c_table.c",
+    "sha256": "ec3f4d9eed016932b9100e4e2332c12f67bd0824a3f3b4b05cc515e7916a2247"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8822c_table.h",
+    "destination": "drivers/rtw88/rtw8822c_table.h",
+    "sha256": "9c52f30bfcf62815da793c19ce5cdb8e9acaa5d789c9929cf8a74178670b445c"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8822ce.c",
+    "destination": "drivers/rtw88/rtw8822ce.c",
+    "sha256": "cc114334adf0678bf675c4edff24f8912497bd8f3644bf6b751f3ed2bea1e248"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8822cs.c",
+    "destination": "drivers/rtw88/rtw8822cs.c",
+    "sha256": "1d0642a2d9f5f37495996a04d534187c6563c527b949afb1c4a3e42f5698c635"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw8822cu.c",
+    "destination": "drivers/rtw88/rtw8822cu.c",
+    "sha256": "dcb31e665b5ff0693f36281e6d2d4edcc93ad0e4c8a1db37bafd507eaa1a3e03"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw88xxa.c",
+    "destination": "drivers/rtw88/rtw88xxa.c",
+    "sha256": "7d62d673a0bd8b024ec0d9304712b1a3c9cb95879c7d46f2527469865e593e74"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rtw88xxa.h",
+    "destination": "drivers/rtw88/rtw88xxa.h",
+    "sha256": "297feb359fcad6af3d1694cf787740f69f3b4469724b42d9f68d8a7c5a61b248"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rx.c",
+    "destination": "drivers/rtw88/rx.c",
+    "sha256": "6f128cbfa705bd4ad8770623a5a6c5743803d889ee9fdfacfb366573c1c532d2"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/rx.h",
+    "destination": "drivers/rtw88/rx.h",
+    "sha256": "e741dd7a6d4f739d0c95973863d57f090a4fa15287995669f9bb77ec5b20a249"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/sar.c",
+    "destination": "drivers/rtw88/sar.c",
+    "sha256": "50c3e6cbb49552a9ef1fcd0f487b02fc670638c42621e4fffdcd241701488be4"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/sar.h",
+    "destination": "drivers/rtw88/sar.h",
+    "sha256": "afa9e6736380882d15e218edf1f1ce06cb5ea3105c8a4912d07397104a29bede"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/sdio.c",
+    "destination": "drivers/rtw88/sdio.c",
+    "sha256": "fd1c228d3ba2fb918a6187771a04a580fb9cc087a830e79481c7ed41f368f8bf"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/sdio.h",
+    "destination": "drivers/rtw88/sdio.h",
+    "sha256": "e405aa7e8a1f28784f3317a88154a843e4af07365f7eca66d9812e5298ffe77c"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/sdio_ids.h",
+    "destination": "drivers/rtw88/sdio_ids.h",
+    "sha256": "b7720df1686f4721db60d55dcbb10c9e2ba4cccf0f687210040d53631ea68923"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/sec.c",
+    "destination": "drivers/rtw88/sec.c",
+    "sha256": "cad22a56ede19a42b3a29a260cdb8400ae901a19b34c86ad5dd173d2b6eebebc"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/sec.h",
+    "destination": "drivers/rtw88/sec.h",
+    "sha256": "78d112a2f089487d4e2221b3217c36df0694b3db8e1147acaa53204ce10004a8"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/tx.c",
+    "destination": "drivers/rtw88/tx.c",
+    "sha256": "3834e15a2ac7c4918292c8947c5bb923b878043e0c8b28f901358723cc9b3684"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/tx.h",
+    "destination": "drivers/rtw88/tx.h",
+    "sha256": "1592695e59beba02e2712bcda398ccf63ae792b693943cd3503258079f3d3963"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/usb.c",
+    "destination": "drivers/rtw88/usb.c",
+    "sha256": "f201dac0ec88b5e78423a4fb754c87e75ba203651ffd492fc520430659571f3a"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/usb.h",
+    "destination": "drivers/rtw88/usb.h",
+    "sha256": "4b435c7cf4fcce78fb1b00ac77643590e85cba69588ed7ee3d7916f64f001a61"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/util.c",
+    "destination": "drivers/rtw88/util.c",
+    "sha256": "9449c30f5dfe7b56ede019b79eb2a22bc7f33ae1eb7721efdd133ac5daa65976"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/util.h",
+    "destination": "drivers/rtw88/util.h",
+    "sha256": "037b6c8119c4cd19173c19e9f05c9f9eaa67311c2a629436befea8db7428e95e"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/wow.c",
+    "destination": "drivers/rtw88/wow.c",
+    "sha256": "d7607ff5050e359b6508a9776413353ed06a5492a37cd24f22385bec4411bf8b"
+  },
+  {
+    "source": "/usr/src/rtw88-tplink-led-0.6+a56bcd26e770/wow.h",
+    "destination": "drivers/rtw88/wow.h",
+    "sha256": "cd6d2d86e342a539839bb9821daf110372dc98988f5068c9f19009cf102a0b7b"
+  },
+  {
+    "source": "/usr/local/src/tplink-led-driver/README.md",
+    "destination": "drivers/rtw88-reference/README.md",
+    "sha256": "9276a29bc7b9d08c5def3d32c0d3963cb721bd713fb6195533d8d544d4c8cf75"
+  },
+  {
+    "source": "/usr/local/src/tplink-led-driver/dkms-tplink.conf",
+    "destination": "drivers/rtw88-reference/dkms-tplink.conf",
+    "sha256": "6c92838bbe0a36a8c777f08de2d121a404affdf8bc98208d841316c91eb212b3"
+  },
+  {
+    "source": "/usr/local/src/tplink-led-driver/source.sha256",
+    "destination": "drivers/rtw88-reference/source.sha256",
+    "sha256": "0007e5336000f02d05990f9b6d1d95817336c3b7aebeb2af578963e242a262db"
+  },
+  {
+    "source": "/usr/local/src/tplink-led-driver/tplink-led-driver.conf",
+    "destination": "drivers/rtw88-reference/tplink-led-driver.conf",
+    "sha256": "aa9caf5b3b1a2702a156eb0f5774361ca41bf192f8131924f125cf9100566d76"
+  },
+  {
+    "source": "~/.bashrc",
+    "destination": "home/.bashrc",
+    "sha256": "07a65ab4c51b0319d0540ad7c18ab040f0b7e56869b481bd4501de15595dbc12"
+  },
+  {
+    "source": "~/.profile",
+    "destination": "home/.profile",
+    "sha256": "de033300313ea31ecb75c10e704786d390667800840e9875f893003ad31100e1"
+  },
+  {
+    "source": "~/.gtkrc-2.0",
+    "destination": "home/.gtkrc-2.0",
+    "sha256": "95a7b195ac8ec8835c683eb1ec5dc632239b817a9e3ff52f7f1c8d345601ac49"
+  },
+  {
+    "source": "~/.icons/default/index.theme",
+    "destination": "home/.icons/default/index.theme",
+    "sha256": "32250d4d4f334ad3b165b08716544af65ed1443f293feaa4c46d34e82d36c647"
+  },
+  {
+    "source": "~/.config/kitty/current-theme.conf",
+    "destination": "home/.config/kitty/current-theme.conf",
+    "sha256": "c4cb59eb6438ecd6e922560000a84bc30ee05d7aa311ff21080a4b9b89daa03d"
+  },
+  {
+    "source": "~/.config/kitty/kitty.conf",
+    "destination": "home/.config/kitty/kitty.conf",
+    "sha256": "ef6f03b11851e34354224c4a99f5e56642530d890bacf5ab4389d6a5ec16cbbc"
+  },
+  {
+    "source": "~/.config/dunst/dunstrc",
+    "destination": "home/.config/dunst/dunstrc",
+    "sha256": "92d51ff4538e9ceff41ba72d2c72d07721a98637c4abf8d53c9bca791d0d4584"
+  },
+  {
+    "source": "~/.config/fastfetch/config.jsonc",
+    "destination": "home/.config/fastfetch/config.jsonc",
+    "sha256": "3125d0f8f5dac1228101655eb167c07d5ad8b87e18592225e0389eda1cd95f00"
+  },
+  {
+    "source": "~/.config/fastfetch/debian-logo-original.txt",
+    "destination": "home/.config/fastfetch/debian-logo-original.txt",
+    "sha256": "73f387bfea12e527274b06fde4ed09e18462fd7bc487b2fe67aef2a68aecf8be"
+  },
+  {
+    "source": "~/.config/fastfetch/skynet-logo.txt",
+    "destination": "home/.config/fastfetch/skynet-logo.txt",
+    "sha256": "d116bc4815bdbe7c28a431a028452bb76e0fc63b4c69514f07fce07231eb22bc"
+  },
+  {
+    "source": "~/.config/bottom/bottom.toml",
+    "destination": "home/.config/bottom/bottom.toml",
+    "sha256": "35386e462720a92ba4f13978e0d994718d3074b5b83b9ab90be02de7931fd80b"
+  },
+  {
+    "source": "~/.config/gtk-3.0/assets/close-active.svg",
+    "destination": "home/.config/gtk-3.0/assets/close-active.svg",
+    "sha256": "5f97f23dc357c9a82260f5a3d3b72a8ec36468e45a980fc7aa6f2c519a6a7beb"
+  },
+  {
+    "source": "~/.config/gtk-3.0/assets/close-backdrop-active.svg",
+    "destination": "home/.config/gtk-3.0/assets/close-backdrop-active.svg",
+    "sha256": "77c03b20abbc3823f8c07b6b74acd39a2c5348b5ce849e16ca25a6f8e61d4df7"
+  },
+  {
+    "source": "~/.config/gtk-3.0/assets/close-backdrop-hover.svg",
+    "destination": "home/.config/gtk-3.0/assets/close-backdrop-hover.svg",
+    "sha256": "89fb0a663baeb3d614dfdb805442b47bd4510270c114a8064521a674598a8399"
+  },
+  {
+    "source": "~/.config/gtk-3.0/assets/close-backdrop-normal.svg",
+    "destination": "home/.config/gtk-3.0/assets/close-backdrop-normal.svg",
+    "sha256": "655c659a255a0a107483549242e0e33fda61b86cd0ee9765c2f097f702379490"
+  },
+  {
+    "source": "~/.config/gtk-3.0/assets/close-hover.svg",
+    "destination": "home/.config/gtk-3.0/assets/close-hover.svg",
+    "sha256": "c574141f8fae311e35a491fdd35e507d0f3cd717763388732445f00561984091"
+  },
+  {
+    "source": "~/.config/gtk-3.0/assets/close-normal.svg",
+    "destination": "home/.config/gtk-3.0/assets/close-normal.svg",
+    "sha256": "6b2b37168a9b89c14900911aaee197992dc4d3e874d6af2a419cab5f62639e64"
+  },
+  {
+    "source": "~/.config/gtk-3.0/assets/maximize-active.svg",
+    "destination": "home/.config/gtk-3.0/assets/maximize-active.svg",
+    "sha256": "291af16ae9451d0e1c8b47ea96517343eb1a640f8fd2326c2323f4759aafad7d"
+  },
+  {
+    "source": "~/.config/gtk-3.0/assets/maximize-backdrop-active.svg",
+    "destination": "home/.config/gtk-3.0/assets/maximize-backdrop-active.svg",
+    "sha256": "26d41c1e5296682deb9e3f51ab7f97b3d0f45b59159f80c46ccd2f47a72b9743"
+  },
+  {
+    "source": "~/.config/gtk-3.0/assets/maximize-backdrop-hover.svg",
+    "destination": "home/.config/gtk-3.0/assets/maximize-backdrop-hover.svg",
+    "sha256": "a30fc671e9dd98000b78d6f5faee0c2fccd0214e1becf66415e4b401335d793e"
+  },
+  {
+    "source": "~/.config/gtk-3.0/assets/maximize-backdrop-normal.svg",
+    "destination": "home/.config/gtk-3.0/assets/maximize-backdrop-normal.svg",
+    "sha256": "cdca92223701d10beac027a040f3dd9ee3b3e55f7e463c99c77fa7121821423b"
+  },
+  {
+    "source": "~/.config/gtk-3.0/assets/maximize-hover.svg",
+    "destination": "home/.config/gtk-3.0/assets/maximize-hover.svg",
+    "sha256": "f02a0ea1e245dc6527b0d4eb028126c4d925e38238122690af38d09c96bb0464"
+  },
+  {
+    "source": "~/.config/gtk-3.0/assets/maximize-normal.svg",
+    "destination": "home/.config/gtk-3.0/assets/maximize-normal.svg",
+    "sha256": "7d307c3ff096c19f2d38077ec6b60dd4d16a37c46e3523837077ac828827ad36"
+  },
+  {
+    "source": "~/.config/gtk-3.0/assets/maximized-active.svg",
+    "destination": "home/.config/gtk-3.0/assets/maximized-active.svg",
+    "sha256": "bd5f323f5ffaec9bb727f6047e806b72edecd8766bf7069cdd55ed2d49590a6a"
+  },
+  {
+    "source": "~/.config/gtk-3.0/assets/maximized-backdrop-active.svg",
+    "destination": "home/.config/gtk-3.0/assets/maximized-backdrop-active.svg",
+    "sha256": "3f9eb5a6a68f283ced8216aea742a90279e1c6fcf08a54367e44e515a46c5b48"
+  },
+  {
+    "source": "~/.config/gtk-3.0/assets/maximized-backdrop-hover.svg",
+    "destination": "home/.config/gtk-3.0/assets/maximized-backdrop-hover.svg",
+    "sha256": "9b0a46ba2b5875d3486087e2f21835510b6d75f798918369b0436ce9ec91d80b"
+  },
+  {
+    "source": "~/.config/gtk-3.0/assets/maximized-backdrop-normal.svg",
+    "destination": "home/.config/gtk-3.0/assets/maximized-backdrop-normal.svg",
+    "sha256": "c5d4b4dcbf17b3bf872b50b36fd493c4350ba1daf1468a603809354f7ec33a03"
+  },
+  {
+    "source": "~/.config/gtk-3.0/assets/maximized-hover.svg",
+    "destination": "home/.config/gtk-3.0/assets/maximized-hover.svg",
+    "sha256": "e79cca1f17a7ba0cee3066711fb93f9426adde452c5dcfd780b4db6a0c37a8e0"
+  },
+  {
+    "source": "~/.config/gtk-3.0/assets/maximized-normal.svg",
+    "destination": "home/.config/gtk-3.0/assets/maximized-normal.svg",
+    "sha256": "76d3a5847090cf22d77c13a83f90e2b0d181d832502adc29e001bc6d420fd3d3"
+  },
+  {
+    "source": "~/.config/gtk-3.0/assets/minimize-active.svg",
+    "destination": "home/.config/gtk-3.0/assets/minimize-active.svg",
+    "sha256": "09e7ec07c4773a7456b4869560fe7074b4827ae3b5f3e74965046adae81e87ec"
+  },
+  {
+    "source": "~/.config/gtk-3.0/assets/minimize-backdrop-active.svg",
+    "destination": "home/.config/gtk-3.0/assets/minimize-backdrop-active.svg",
+    "sha256": "c07b6e39fd89042454338ecc9cd03c9157d255a5505669d5c87d0eb6bedf55b9"
+  },
+  {
+    "source": "~/.config/gtk-3.0/assets/minimize-backdrop-hover.svg",
+    "destination": "home/.config/gtk-3.0/assets/minimize-backdrop-hover.svg",
+    "sha256": "097d91ccf2a4afe694c49245817cb98e88ffcff5216e528c4cf2901aa2c33217"
+  },
+  {
+    "source": "~/.config/gtk-3.0/assets/minimize-backdrop-normal.svg",
+    "destination": "home/.config/gtk-3.0/assets/minimize-backdrop-normal.svg",
+    "sha256": "2b6ee59df506c1c6f1e66956eb18e59d59d9a43796cd21ee032a57b8d294b65c"
+  },
+  {
+    "source": "~/.config/gtk-3.0/assets/minimize-hover.svg",
+    "destination": "home/.config/gtk-3.0/assets/minimize-hover.svg",
+    "sha256": "9b974f3c650a33d728a59cc690b8d814e45893b5820c6d8d09dd30223c787df4"
+  },
+  {
+    "source": "~/.config/gtk-3.0/assets/minimize-normal.svg",
+    "destination": "home/.config/gtk-3.0/assets/minimize-normal.svg",
+    "sha256": "71aa21b710f06cb15faa239c7c6bbdedb4425c73db8d43d137c473f09da8f0c5"
+  },
+  {
+    "source": "~/.config/gtk-3.0/colors.css",
+    "destination": "home/.config/gtk-3.0/colors.css",
+    "sha256": "f8158f7b9b4ff8762b3ffa9998a81594513a64d6523fb060a13604fd430a9c7a"
+  },
+  {
+    "source": "~/.config/gtk-3.0/gtk.css",
+    "destination": "home/.config/gtk-3.0/gtk.css",
+    "sha256": "39f53137010efbba8ccbbba7a5f9a744291bbb70f51fd743797d82dcceef62b7"
+  },
+  {
+    "source": "~/.config/gtk-3.0/settings.ini",
+    "destination": "home/.config/gtk-3.0/settings.ini",
+    "sha256": "cca86620268632bd34309d87a260f376854af84368d0a642c2671421d53668a2"
+  },
+  {
+    "source": "~/.config/gtk-4.0/colors.css",
+    "destination": "home/.config/gtk-4.0/colors.css",
+    "sha256": "f8158f7b9b4ff8762b3ffa9998a81594513a64d6523fb060a13604fd430a9c7a"
+  },
+  {
+    "source": "~/.config/gtk-4.0/gtk.css",
+    "destination": "home/.config/gtk-4.0/gtk.css",
+    "sha256": "39f53137010efbba8ccbbba7a5f9a744291bbb70f51fd743797d82dcceef62b7"
+  },
+  {
+    "source": "~/.config/gtk-4.0/settings.ini",
+    "destination": "home/.config/gtk-4.0/settings.ini",
+    "sha256": "61b7756bdbc5cd9912f9561f2d708baa52813bfb67b7718674f783ced15e8c60"
+  },
+  {
+    "source": "~/.config/xsettingsd/xsettingsd.conf",
+    "destination": "home/.config/xsettingsd/xsettingsd.conf",
+    "sha256": "e2657c662970a7395bac8cdf59dc58abb9533fc3c2f44e663a57ab7247133cea"
+  },
+  {
+    "source": "~/.config/fontconfig/conf.d/50-jetbrains-mono.conf",
+    "destination": "home/.config/fontconfig/conf.d/50-jetbrains-mono.conf",
+    "sha256": "fb14e08cebf8d892747a77b575d9a78042f00a5617cb6714f98b58943f3e0d7d"
+  },
+  {
+    "source": "~/.local/share/xsecurelock-style/background.png",
+    "destination": "home/.local/share/xsecurelock-style/background.png",
+    "sha256": "061f1ec0f2d5d6903f1cd520d61489237abb8f1acbda1c71f43bfe17fd308237"
+  },
+  {
+    "source": "~/wallpapers/skynet.png",
+    "destination": "home/wallpapers/skynet.png",
+    "sha256": "33972847d90e06b3b55c0a112392541e14c4e7bc587909360c6cceb965b8c0b9"
+  },
+  {
+    "source": "~/.fehbg",
+    "destination": "home/.fehbg",
+    "sha256": "ad824ee8d36ea2917450a095ee7a681a23df864f1d1465af8dcc9fcf58c101c2"
+  },
+  {
+    "source": "~/.xprofile",
+    "destination": "profiles/debian/home/.xprofile",
+    "sha256": "02f4749ca394b6c70ad6212cc481c75204d329443007f62e88afc015d82d90b9"
+  },
+  {
+    "source": "~/.xsessionrc",
+    "destination": "profiles/debian/home/.xsessionrc",
+    "sha256": "56f150153457d0b244e153014003000ebcf4a84be9dac685078063438156cd2e"
+  },
+  {
+    "source": "~/.config/powerdevilrc",
+    "destination": "profiles/debian/home/.config/powerdevilrc",
+    "sha256": "46d219d22b88ebfaecdb29f5cc99005b5a63566c89ec52d885fdd42d89b205b2"
+  },
+  {
+    "source": "~/.config/systemd/user/dwm-session-lock@.service",
+    "destination": "profiles/debian/home/.config/systemd/user/dwm-session-lock@.service",
+    "sha256": "fd83b100386a45640a5ae4fc6feb0781969972a9c071fb6bc7b13e6657587e12"
+  },
+  {
+    "source": "~/.config/systemd/user/audio-mute-state.service",
+    "destination": "profiles/debian/home/.config/systemd/user/audio-mute-state.service",
+    "sha256": "116d5c28d260c2ad2a3709a03e05a86de529b77624c6b89fefcafdcd1a48357b"
+  },
+  {
+    "source": "~/.config/systemd/user/audio-mute-state.service.d/20-safety.conf",
+    "destination": "profiles/debian/home/.config/systemd/user/audio-mute-state.service.d/20-safety.conf",
+    "sha256": "923ff37fa799389ebadda8c0b6e5ad154c7148f69d2b396c2087bd06cf2ee25c"
+  },
+  {
+    "source": "~/.config/systemd/user/expertbook-usbc-watch.service.d/20-safety.conf",
+    "destination": "profiles/debian/home/.config/systemd/user/expertbook-usbc-watch.service.d/20-safety.conf",
+    "sha256": "82fe189e2c2949e56207756a3dc219a766f987fc26476d6514c457d3503616db"
+  },
+  {
+    "source": "/etc/dwm/config.h",
+    "destination": "profiles/debian/rootfs/etc/dwm/config.h",
+    "sha256": "69657e61a5cdf30b3ff193f676364997f87142b837a8cfdf6b8e781049516842"
+  },
+  {
+    "source": "/etc/dwm/autostart.sh",
+    "destination": "profiles/debian/rootfs/etc/dwm/autostart.sh",
+    "sha256": "3b61913973d2a901dffea5e457245b3e0e4c4bbd8108eeae7d92c52652df90fa"
+  },
+  {
+    "source": "/etc/dmenu/config.h",
+    "destination": "profiles/debian/rootfs/etc/dmenu/config.h",
+    "sha256": "6916650371d9f25cd0ebfcffcd62f2880deda2b7c9f33465fa4833cf335b2dcc"
+  },
+  {
+    "source": "/etc/slstatus/config.h",
+    "destination": "profiles/debian/rootfs/etc/slstatus/config.h",
+    "sha256": "b1ba265f60bef8020d94f420a50b5d765d86b5985bb2ef099dd88f0d42c8f053"
+  },
+  {
+    "source": "/etc/greetd/config.toml",
+    "destination": "profiles/debian/rootfs/etc/greetd/config.toml",
+    "sha256": "a447f36be6ddee3e24c9e08aaeb0c8fcf10ba5d9b7b16c258a307dd0308a29b4"
+  },
+  {
+    "source": "/etc/greetd/skynet.css",
+    "destination": "profiles/debian/rootfs/etc/greetd/skynet.css",
+    "sha256": "c7d15265c7f96b080fd477059a9c420ca9cd8969b26a3d10c4005144791f5879"
+  },
+  {
+    "source": "/etc/tlp.d/90-expertbook-b3405.conf",
+    "destination": "profiles/debian/rootfs/etc/tlp.d/90-expertbook-b3405.conf",
+    "sha256": "fb8c7627868026bb06e3ec4ffb8c57981bf8ceea74687d472cda59902988b117"
+  },
+  {
+    "source": "/etc/modprobe.d/tplink-led-driver.conf",
+    "destination": "profiles/debian/rootfs/etc/modprobe.d/tplink-led-driver.conf",
+    "sha256": "aa9caf5b3b1a2702a156eb0f5774361ca41bf192f8131924f125cf9100566d76"
+  },
+  {
+    "source": "/etc/udev/rules.d/90-console-capslock.rules",
+    "destination": "profiles/debian/rootfs/etc/udev/rules.d/90-console-capslock.rules",
+    "sha256": "1a74c2b171787b3e1756b140413de00a7507d72f17cc95106df13e2b1ab46831"
+  },
+  {
+    "source": "/etc/udev/rules.d/90-alsa-restore.rules",
+    "destination": "profiles/debian/rootfs/etc/udev/rules.d/90-alsa-restore.rules",
+    "sha256": "e17f53c8923c96e30d5d925f9d525235f2e2da8d084591e33993c2a05f0cb0e0"
+  },
+  {
+    "source": "/etc/udev/rules.d/90-usb-no-autosuspend.rules",
+    "destination": "profiles/debian/rootfs/etc/udev/rules.d/90-usb-no-autosuspend.rules",
+    "sha256": "198840838c3bf55f190620a84f73a0576cba1b876d1341f679cf6bdb2f2ff3f1"
+  },
+  {
+    "source": "/etc/udev/rules.d/91-expertbook-mute-led.rules",
+    "destination": "profiles/debian/rootfs/etc/udev/rules.d/91-expertbook-mute-led.rules",
+    "sha256": "dd31b84f6c4309a098db0ddf59988bad9e5f62d42313adedb26a81767600d047"
+  },
+  {
+    "source": "/etc/X11/xorg.conf.d/30-touchpad.conf",
+    "destination": "profiles/debian/rootfs/etc/X11/xorg.conf.d/30-touchpad.conf",
+    "sha256": "a6051409a6f5a25a72fd935ebb9f07e7447be87315bf9606c5e116c3d54ec29f"
+  },
+  {
+    "source": "/etc/systemd/system/expertbook-mute-led.service",
+    "destination": "profiles/debian/rootfs/etc/systemd/system/expertbook-mute-led.service",
+    "sha256": "e936a4e040c1f840a17246c70a14a82332bdd8447250e81392eac9d73c06e270"
+  },
+  {
+    "source": "/etc/systemd/system/greetd.service.d/console.conf",
+    "destination": "profiles/debian/rootfs/etc/systemd/system/greetd.service.d/console.conf",
+    "sha256": "020934a00adf7736c40d0bf40e1d9dbf9a8b0418aabd08d67026b68d84a1d266"
+  },
+  {
+    "source": "/etc/systemd/system/apt-daily.service.d/20-low-impact.conf",
+    "destination": "profiles/debian/rootfs/etc/systemd/system/apt-daily.service.d/20-low-impact.conf",
+    "sha256": "48d78246c61e7c2bd1336474bf286c52c766e7c158a84836055c1ee1cdd743ba"
+  },
+  {
+    "source": "/etc/systemd/system/apt-daily-upgrade.service.d/20-low-impact.conf",
+    "destination": "profiles/debian/rootfs/etc/systemd/system/apt-daily-upgrade.service.d/20-low-impact.conf",
+    "sha256": "48d78246c61e7c2bd1336474bf286c52c766e7c158a84836055c1ee1cdd743ba"
+  },
+  {
+    "source": "/etc/systemd/system/nftables.service.d/20-preserve-other-tables.conf",
+    "destination": "profiles/debian/rootfs/etc/systemd/system/nftables.service.d/20-preserve-other-tables.conf",
+    "sha256": "3b2eb5c9b0dae3eba0e6fef70006d3e1e189365e506af028a4323f38874192c0"
+  },
+  {
+    "source": "/etc/systemd/system/smartmontools.service.d/options.conf",
+    "destination": "profiles/debian/rootfs/etc/systemd/system/smartmontools.service.d/options.conf",
+    "sha256": "4e6e34ed1531906c9d776f918731d9cc4ea0dac13ce662aed3e7b6520c872f4e"
+  },
+  {
+    "source": "/etc/systemd/user/expertbook-usbc-watch.service",
+    "destination": "profiles/debian/rootfs/etc/systemd/user/expertbook-usbc-watch.service",
+    "sha256": "8f676bd7fc77d9441ecb67c197bab46dbb6a4e6945d8592b4351e66293fafebb"
+  },
+  {
+    "source": "/etc/systemd/user/expertbook-usbc-watch.timer",
+    "destination": "profiles/debian/rootfs/etc/systemd/user/expertbook-usbc-watch.timer",
+    "sha256": "1b47be76b50519094868d00ca35ab4b655de0b3b34a7117bff2421fbdfec1157"
+  },
+  {
+    "source": "/etc/systemd/logind.conf.d/80-power-button-lock.conf",
+    "destination": "profiles/debian/rootfs/etc/systemd/logind.conf.d/80-power-button-lock.conf",
+    "sha256": "e37ac99a96cbcdbd48d72da7482d55c67f2fe95f1c1d8d487af30a7b09a70e33"
+  },
+  {
+    "source": "/etc/systemd/logind.conf.d/85-no-sleep.conf",
+    "destination": "profiles/debian/rootfs/etc/systemd/logind.conf.d/85-no-sleep.conf",
+    "sha256": "e628149384cc66000fd45107fed87e196ef59ec3c7c81db9b04ed1ed7ff089da"
+  },
+  {
+    "source": "/etc/systemd/sleep.conf.d/80-no-sleep.conf",
+    "destination": "profiles/debian/rootfs/etc/systemd/sleep.conf.d/80-no-sleep.conf",
+    "sha256": "201ae7e7fdeb50e61ae2fa86dfd6cbd6144cda46ea556d642d70efcceb47aeee"
+  },
+  {
+    "source": "/etc/nftables.conf",
+    "destination": "profiles/debian/rootfs/etc/nftables.conf",
+    "sha256": "d1e5233aea9b2f2060b9d4413354e1f1e314f1f0e5bf404956929abe33553faa"
+  },
+  {
+    "source": "/etc/apt/apt.conf.d/99expertbook-security-upgrades",
+    "destination": "profiles/debian/rootfs/etc/apt/apt.conf.d/99expertbook-security-upgrades",
+    "sha256": "c92004134574fcabc353fec29a32f54cd43634ef2a0a61bc8b861907e59a2c25"
+  },
+  {
+    "source": "/etc/default/grub.d/90-expertbook-hardening.cfg",
+    "destination": "profiles/debian/rootfs/etc/default/grub.d/90-expertbook-hardening.cfg",
+    "sha256": "fc07a1f891e5594d1f119b0c271fc8369ee0587fb18587282446b1ae3126c6fa"
+  },
+  {
+    "source": "/etc/default/grub.d/95-expertbook-boot.cfg",
+    "destination": "profiles/debian/rootfs/etc/default/grub.d/95-expertbook-boot.cfg",
+    "sha256": "ce58fd84958ada875a11193ac8bd75c0f518a4d6721af9ca911a53334354f7f0"
+  },
+  {
+    "source": "/etc/initramfs-tools/modules",
+    "destination": "profiles/debian/rootfs/etc/initramfs-tools/modules",
+    "sha256": "930a02a926b880304b69deb1d0c08aec3c5a69577e0260eaa4e4340f5a8aefd4"
+  },
+  {
+    "source": "/etc/initramfs-tools/hooks/zz-expertbook-boot",
+    "destination": "profiles/debian/rootfs/etc/initramfs-tools/hooks/zz-expertbook-boot",
+    "sha256": "5a04586126bb60937ef802fa8f653e2e38d759ca0c413a7da0ec8dcecff44d01"
+  },
+  {
+    "source": "/usr/share/xsessions/dwm.desktop",
+    "destination": "profiles/debian/rootfs/usr/share/xsessions/dwm.desktop",
+    "sha256": "fa16550b6bcdc1fb6908f4b71f2469fb227a1d1434a4cbdc81f23eb7a9381199"
+  },
+  {
+    "source": "/usr/local/bin/dmenu_path",
+    "destination": "runtime/usr/local/bin/dmenu_path",
+    "sha256": "a3f19e648e20eb80532dfe87e9bd9feeaa92df838e6ecc061f274c9da579d617"
+  },
+  {
+    "source": "/usr/local/bin/dmenu_run",
+    "destination": "runtime/usr/local/bin/dmenu_run",
+    "sha256": "564035fd8a8ade6504521d98fa10e8732e135403d546d04ca77316fe4a67b21c"
+  },
+  {
+    "source": "/usr/local/bin/dwm-brightness",
+    "destination": "runtime/usr/local/bin/dwm-brightness",
+    "sha256": "bdda49fd82cdda514f2cb5d88a27b40d26843b5f3129be215c833d93e7e17d61"
+  },
+  {
+    "source": "/usr/local/bin/dwm-volume",
+    "destination": "runtime/usr/local/bin/dwm-volume",
+    "sha256": "00774575af10b2f2508799bc8ebaa93883a6f02898599e45485f3500b685bb5b"
+  },
+  {
+    "source": "/usr/local/bin/expertbook-usbc-watch",
+    "destination": "runtime/usr/local/bin/expertbook-usbc-watch",
+    "sha256": "5d4ba9e4722a721b0ebe8323cc659130ad74b3c4ee5b0eb394aa0f8df1b86fa9"
+  },
+  {
+    "source": "/usr/local/sbin/audit-debian-boot",
+    "destination": "reference/debian-maintenance/audit-debian-boot",
+    "sha256": "ba63b324206bc49a1dab1a4b6396d4aba42483d270de0a2aec7a3957eb365a71"
+  },
+  {
+    "source": "/usr/local/sbin/finalize-expertbook-boot",
+    "destination": "reference/debian-maintenance/finalize-expertbook-boot",
+    "sha256": "84a1400104e4d82f376642dfeb24caee0f78d607cfd1771e0679486c7e57a059"
+  },
+  {
+    "source": "/usr/local/sbin/install-ferdium-tray-bridge",
+    "destination": "reference/debian-maintenance/install-ferdium-tray-bridge",
+    "sha256": "cfe548f8cc66974c7f133c3f2bfc0ba37e6e4d1e7138df30f9df4ef854662d16"
+  },
+  {
+    "source": "/usr/local/sbin/install-vmd-test-entry",
+    "destination": "reference/debian-maintenance/install-vmd-test-entry",
+    "sha256": "62b6cef37d6443459a096038701de592024cbcf1695a2db103234d0adaac1700"
+  },
+  {
+    "source": "/usr/local/sbin/install-vmd-usbc-test-entry",
+    "destination": "reference/debian-maintenance/install-vmd-usbc-test-entry",
+    "sha256": "a8917e85ca884b9fd4ce2c4370130eff29adf2e80777d2b030bba962a66ef0a9"
+  },
+  {
+    "source": "/usr/local/sbin/optimize-debian-boot",
+    "destination": "reference/debian-maintenance/optimize-debian-boot",
+    "sha256": "408ac4260891e9c59e9142ccaf63760bc2ff188780b35e47d03182bac5da596e"
+  },
+  {
+    "source": "/usr/local/sbin/prepare-vmd-test",
+    "destination": "reference/debian-maintenance/prepare-vmd-test",
+    "sha256": "1c8f09652e723d641e0b760bb09dd5e0ead2caad2f352b19fdab780bd4320c0f"
+  },
+  {
+    "source": "/usr/local/sbin/prepare-vmd-usbc-test",
+    "destination": "reference/debian-maintenance/prepare-vmd-usbc-test",
+    "sha256": "3aece1c59104969e6b6458fd378fea89ba89e25c424ecb3aa509da43996a5a84"
+  },
+  {
+    "source": "/usr/local/sbin/remove-plasma-desktop",
+    "destination": "reference/debian-maintenance/remove-plasma-desktop",
+    "sha256": "9fc28dd8c099ed4cca22b0ef5922b6bbc7882041b029dcdaf708b3c2dd315e24"
+  },
+  {
+    "source": "/usr/local/sbin/restore-plasma-x11",
+    "destination": "reference/debian-maintenance/restore-plasma-x11",
+    "sha256": "eea8243ea6b68d65432c2b17f8921e6e92e81c137cbbbbf896ca9fb9e1c1d8f8"
+  },
+  {
+    "source": "/usr/local/sbin/set-tlp-charge-limit-80",
+    "destination": "reference/debian-maintenance/set-tlp-charge-limit-80",
+    "sha256": "f4224f703101b92080e97f10d00612cb44ae930064b10a083403d28a07bb075c"
+  },
+  {
+    "source": "/usr/local/sbin/setup-greetd",
+    "destination": "reference/debian-maintenance/setup-greetd",
+    "sha256": "0e4b7bf59e39b1e9d92dccfb1016fc4adb99d5b85fad6265ebf67a3fc7892f78"
+  },
+  {
+    "source": "/usr/local/sbin/setup-greetd-capslock",
+    "destination": "reference/debian-maintenance/setup-greetd-capslock",
+    "sha256": "e26856aa6860b78664c8c8952349105ea95489e53a6265a918a71df5bbfc3f1e"
+  },
+  {
+    "source": "/usr/local/sbin/setup-grub-expertbook",
+    "destination": "reference/debian-maintenance/setup-grub-expertbook",
+    "sha256": "9be677f58c67940fbccf1e0c476e7d2a7f57868562dc622d5b97613dbe35362b"
+  },
+  {
+    "source": "/usr/local/sbin/setup-tlp-expertbook",
+    "destination": "reference/debian-maintenance/setup-tlp-expertbook",
+    "sha256": "6aaa904e9570bab653ed4f3e34c83fc11eecfe7a022c095a36f7681d8bb00e17"
+  },
+  {
+    "source": "/usr/local/sbin/verify-vmd-runtime",
+    "destination": "reference/debian-maintenance/verify-vmd-runtime",
+    "sha256": "7324dff16a0da096c6f6595639fb1541aa0b6d5a86a5d51052a386c160b24997"
+  },
+  {
+    "source": "/usr/local/sbin/verify-vmd-usbc-runtime",
+    "destination": "reference/debian-maintenance/verify-vmd-usbc-runtime",
+    "sha256": "2b811983faab1e71718fbecd16b912e0db4531db139fdbe1b4086015d8d1cabd"
+  },
+  {
+    "source": "/usr/local/libexec/audio-mute-state",
+    "destination": "runtime/usr/local/libexec/audio-mute-state",
+    "sha256": "9eead37680d4417cf104bd0e14fe9f142b2cdb31ae135c4ca943ef98d66e5f8e"
+  },
+  {
+    "source": "/usr/local/libexec/dwm-session-lock",
+    "destination": "runtime/usr/local/libexec/dwm-session-lock",
+    "sha256": "14d04d722b2296a9138f88643629eb5a1e949bba83b7dbf1576158c78db3ce56"
+  },
+  {
+    "source": "/usr/local/libexec/expertbook-mute-led",
+    "destination": "runtime/usr/local/libexec/expertbook-mute-led",
+    "sha256": "f99a232a0f9e8a51a681c1b4219e921f4d1e0b9ee2f3cc82dd51adbad276015d"
+  },
+  {
+    "source": "/usr/local/libexec/greetd/capslock-bin/kbdinfo",
+    "destination": "runtime/usr/local/libexec/greetd/capslock-bin/kbdinfo",
+    "sha256": "8db2505fbd256ddd12e321fbfe52c8522a4eec2d90bcdb1b02cc3fb1cc0bd6bb"
+  },
+  {
+    "source": "/usr/local/libexec/greetd/session-x",
+    "destination": "runtime/usr/local/libexec/greetd/session-x",
+    "sha256": "3d20f65e61e514acda7372aa1b6ebf100639f77e26b20dd45b49b4fe7a55a57e"
+  },
+  {
+    "source": "/usr/local/libexec/greetd/skynet-greeter",
+    "destination": "runtime/usr/local/libexec/greetd/skynet-greeter",
+    "sha256": "5f9d9ac9a57285a283a7ef4669a63104d308656a301791cd4c91f4e539a4652f"
+  },
+  {
+    "source": "/usr/local/libexec/greetd/start-x",
+    "destination": "runtime/usr/local/libexec/greetd/start-x",
+    "sha256": "99591ddee8cc881bab8fd38e8483c051ed2a686d2eb6cc6fb9abd859c5cd804a"
+  },
+  {
+    "source": "/usr/local/libexec/greetd/tuigreet-capslock",
+    "destination": "runtime/usr/local/libexec/greetd/tuigreet-capslock",
+    "sha256": "46045f8c2a2c4a13b3bb01f93ff69c4886b4928c6c5ca6a15584149955a54f2c"
+  },
+  {
+    "source": "~/system-review-2026-10-17/inventory/apt-packages.tsv",
+    "destination": "manifests/apt-packages.tsv",
+    "sha256": "289ea1ab98a04372b98eb13e65e985784f172ccd48acd13396b77e527961e614"
+  },
+  {
+    "source": "~/system-review-2026-10-17/inventory/apt-manual.txt",
+    "destination": "manifests/apt-manual.txt",
+    "sha256": "b59aca6bfc65c53e4ebca86be6c8a02640a75c06c45bea4124f7f34e6ef2404b"
+  },
+  {
+    "source": "~/system-review-2026-10-17/inventory/vscode-extensions.json",
+    "destination": "manifests/vscode-extensions.json",
+    "sha256": "cc62d194ff1c989c7f993e0c6253173bd6ce289e06ba257e43df357da45948cb"
+  },
+  {
+    "source": "~/system-review-2026-10-17/inventory/node-global-packages.json",
+    "destination": "manifests/node-global-packages.json",
+    "sha256": "503f91f0a662a380304d76e1f56f17da0112b66d817644b206d8578b016ae563"
+  },
+  {
+    "source": "~/system-review-2026-10-17/inventory/dotnet.txt",
+    "destination": "manifests/dotnet.txt",
+    "sha256": "d10357248ad4d92f63b64c6fef2967d068874f28c201d845405a868545ac5fff"
+  },
+  {
+    "source": "~/system-review-2026-10-17/vmd-6.12.113/backport.patch",
+    "destination": "drivers/vmd/backport.patch",
+    "sha256": "dbafcc701deb7257db168cfe8a7d58b83bc614db9a2b1565d6bdaa0bf03eddc2"
+  },
+  {
+    "source": "~/system-review-2026-10-17/vmd-6.12.113/pristine/vmd.c",
+    "destination": "drivers/vmd/pristine/vmd.c",
+    "sha256": "d65935d271c1c225ea00dca78c8d8f6c0d4e3c466bb52564d5b483331f3f95a4"
+  },
+  {
+    "source": "~/system-review-2026-10-17/vmd-6.12.113/build.py",
+    "destination": "drivers/vmd/build.py",
+    "sha256": "bc176d22f232af93913a74aa0ef1e9eed5922acec80d4d003eb169df34ecd40d"
+  }
+]

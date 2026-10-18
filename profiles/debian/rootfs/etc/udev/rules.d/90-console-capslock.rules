@@ -1,0 +1,3 @@
+# Debian console-setup uses CtrlL_Lock for Unicode-aware capitalization.
+# Keep the keymap intact and connect the physical Caps Lock LED to that bit.
+ACTION=="add", SUBSYSTEM=="leds", KERNEL=="input*::capslock", ATTR{trigger}="kbd-ctrlllock"

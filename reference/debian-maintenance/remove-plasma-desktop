@@ -1,0 +1,129 @@
+#!/usr/bin/python3
+"""Remove only the reviewed Plasma desktop packages; preserve applications."""
+import argparse
+import datetime
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+
+REQUESTED = ('plasma-desktop', 'plasma-workspace', 'kwin-x11', 'kwin-wayland')
+ALLOWED = set(REQUESTED) | {
+    'kde-plasma-desktop', 'kde-standard', 'plasma-widgets-addons',
+    'sddm-theme-breeze', 'sddm-theme-debian-breeze', 'task-kde-desktop',
+}
+KEEP = '''greetd tuigreet sddm xserver-xorg xserver-xorg-legacy xinit xauth
+dbus-user-session x11-utils x11-xserver-utils network-manager network-manager-applet
+pipewire pipewire-pulse wireplumber polkit-kde-agent-1 libpam-kwallet5
+libpam-gnome-keyring breeze-icon-theme breeze-cursor-theme breeze-gtk-theme
+kde-style-breeze kde-style-breeze-qt5 plasma-integration plasma5-integration
+xdg-desktop-portal xdg-desktop-portal-gtk dolphin kate konsole kdialog kdeconnect'''.split()
+APT = ['apt-get', '-o', 'APT::Get::AutomaticRemove=false']
+
+
+def run(*args, **kwargs):
+    return subprocess.run(args, text=True, check=True, capture_output=True, **kwargs)
+
+
+def installed():
+    output = run('dpkg-query', '-W', '-f=${binary:Package}\t${Version}\t${db:Status-Status}\n').stdout
+    return {name: version for name, version, status in
+            (line.split('\t') for line in output.splitlines()) if status == 'installed'}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--apply', action='store_true')
+    args = parser.parse_args()
+    os.environ.update(PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+                      LC_ALL='C', DEBIAN_FRONTEND='noninteractive', NEEDRESTART_MODE='l')
+    before = installed()
+    simulation = run(*APT, '--simulate', 'remove', *REQUESTED).stdout
+    removed = {line.split()[1].split(':')[0] for line in simulation.splitlines() if line.startswith('Remv ')}
+    if removed != ALLOWED or any(line.startswith(('Inst ', 'Conf ')) for line in simulation.splitlines()):
+        raise RuntimeError('The package plan does not match the 10 reviewed packages; operation stopped.\n' + simulation)
+    print('Packages to remove: ' + ', '.join(sorted(removed)), flush=True)
+    print('Other installed packages and user files will be preserved.', flush=True)
+    if not args.apply:
+        return
+    if os.geteuid() != 0:
+        raise RuntimeError('Administrator authentication is required for --apply.')
+    run('systemctl', 'is-active', '--quiet', 'greetd.service')
+    if Path('/etc/systemd/system/display-manager.service').resolve().name != 'greetd.service':
+        raise RuntimeError('The default display manager must be greetd.')
+    plasma = subprocess.run(['pgrep', '-x', 'plasmashell|kwin_x11|kwin_wayland'], capture_output=True)
+    if plasma.returncode != 1:
+        raise RuntimeError('A Plasma session may be running; removal stopped.')
+    run('pgrep', '-x', 'dwm')
+    for name in ('/usr/local/bin/dwm', '/usr/share/xsessions/dwm.desktop', '/etc/greetd/start-x', '/etc/greetd/session-x'):
+        if not Path(name).is_file():
+            raise RuntimeError('Required dwm file missing: ' + name)
+
+    stamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
+    backup = Path('/var/backups/plasma-removal') / stamp
+    backup.mkdir(parents=True, mode=0o700)
+    print('Yedek: ' + str(backup), flush=True)
+    (backup / 'packages-before.json').write_text(json.dumps(before, indent=2))
+    (backup / 'manual-before.txt').write_text(run('apt-mark', 'showmanual').stdout)
+    (backup / 'simulation.txt').write_text(simulation)
+    for name in ('x-session-manager', 'x-window-manager'):
+        result = subprocess.run(['update-alternatives', '--query', name], text=True, capture_output=True)
+        (backup / (name + '.txt')).write_text(result.stdout + result.stderr)
+    config = Path('/etc/greetd/config.toml')
+    config_before = config.read_bytes()
+    shutil.copy2(config, backup / 'greetd-config.toml')
+    shutil.copy2('/usr/share/xsessions/plasmax11.desktop', backup / 'plasmax11.desktop')
+    cache = Path('/var/cache/tuigreet')
+    if cache.is_symlink():
+        raise RuntimeError('The tuigreet cache is an unexpected symbolic link.')
+    cached = []
+    if cache.is_dir():
+        for path in cache.glob('lastsession*'):
+            if path.is_symlink() or not path.is_file() or path.stat().st_size > 65536:
+                raise RuntimeError('Unexpected session cache: ' + str(path))
+            data = path.read_bytes()
+            if any(token in data for token in (b'startplasma', b'plasmax11.desktop', b'plasma.desktop')):
+                shutil.copy2(path, backup / path.name)
+                cached.append(path)
+
+    present = {name.split(':')[0] for name in before}
+    run('apt-mark', 'manual', *(name for name in KEEP if name in present))
+    # Keep the generic X11 fallback valid after kwin's alternative is removed.
+    run('update-alternatives', '--install', '/usr/bin/x-window-manager',
+        'x-window-manager', '/usr/local/bin/dwm', '60')
+    result = subprocess.run([*APT, '--yes', 'remove', *REQUESTED], text=True, capture_output=True)
+    (backup / 'apt-remove.log').write_text(result.stdout + result.stderr)
+    result.check_returncode()
+    for path in cached:
+        path.unlink()
+    after = installed()
+    (backup / 'packages-after.json').write_text(json.dumps(after, indent=2))
+    actual_removed = set(before) - set(after)
+    if {name.split(':')[0] for name in actual_removed} != ALLOWED:
+        raise RuntimeError('The removed package list differs from the plan; check the backup log.')
+    changed = {name for name in set(before) & set(after) if before[name] != after[name]}
+    if changed or set(after) - set(before):
+        raise RuntimeError('An unexpected package version change was detected.')
+    if Path('/usr/share/xsessions/plasmax11.desktop').exists() or shutil.which('startplasma-x11'):
+        raise RuntimeError('The Plasma session entry still exists.')
+    if config.read_bytes() != config_before:
+        raise RuntimeError('The greetd configuration changed unexpectedly.')
+    run('apt-get', 'check')
+    audit = run('dpkg', '--audit')
+    if audit.stdout.strip():
+        raise RuntimeError(audit.stdout)
+    run('systemctl', 'is-active', '--quiet', 'greetd.service')
+    run('pgrep', '-x', 'dwm')
+    print('Completed: only the 10 Plasma desktop and theme packages were removed.', flush=True)
+    print('All other installed packages remain at the same versions; greetd and dwm are running.', flush=True)
+    print('Yedek: ' + str(backup), flush=True)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as error:
+        print('Error: ' + str(error), file=sys.stderr)
+        sys.exit(1)

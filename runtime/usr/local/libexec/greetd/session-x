@@ -1,0 +1,13 @@
+#!/bin/sh
+# X is now running; load the same X profile files as SDDM.
+# Do not enable errexit/nounset while sourcing user profile files.
+for greetd_profile in /etc/xprofile /usr/local/etc/xprofile "$HOME/.xprofile"; do
+    if [ -r "$greetd_profile" ]; then
+        . "$greetd_profile"
+    fi
+done
+unset greetd_profile
+
+# Debian Xsession accepts the complete command as ONE argument.
+# Passing dbus-run-session and dwm separately would select the default desktop.
+exec /etc/X11/Xsession "$*"

@@ -1,0 +1,20 @@
+
+* { font-family: "JetBrains Mono", monospace; font-size: 14px; }
+window { background: #000000; color: #dedde1; }
+#window { background: transparent; }
+#brand { color: #ba8d98; font-size: 12px; }
+#clock { color: #bcaeb3; font-size: 13px; }
+#body { background: #070305; border: 1px solid #782035; padding: 28px 40px; }
+#access-heading { color: #ff536d; font-weight: bold; letter-spacing: 2px; font-size: 15px; }
+entry, combobox button { background: #0d080b; color: #ece8ec; border: 1px solid #6b2738; border-radius: 0; box-shadow: none; min-height: 28px; padding: 7px 12px; }
+entry:focus, combobox button:focus { border-color: #ff405e; }
+entry selection { background: #8a1931; color: white; }
+button { background: #16080d; color: #e7c6cf; border: 1px solid #8b2a40; border-radius: 0; box-shadow: none; padding: 9px 18px; }
+button:hover { background: #3c0c19; color: white; border-color: #ef3657; }
+button:focus { outline: 1px solid #ff5d78; outline-offset: 2px; }
+button.suggested-action { background: #9d1834; border-color: #ef3657; color: #ffffff; }
+button.suggested-action:hover { background: #c42143; }
+#power-button { font-size: 12px; padding: 10px 16px; }
+#login-error { color: #ff8299; }
+menu, popover { background: #10080c; color: #ede5e9; border: 1px solid #8b2a40; }
+menuitem:hover { background: #64132a; }

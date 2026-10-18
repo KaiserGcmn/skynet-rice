@@ -1,0 +1,21 @@
+#!/usr/bin/python3
+"""Connect the built-in speaker switch to its LED without changing audio."""
+from pathlib import Path
+import subprocess
+
+if Path('/sys/class/dmi/id/product_name').read_text().strip() != 'ASUS EXPERTBOOK B3405CCA':
+    raise SystemExit('This helper only supports ASUS ExpertBook B3405CCA.')
+
+subprocess.run(['/usr/sbin/modprobe', 'asus_nb_wmi'], check=True)
+subprocess.run(['/usr/sbin/modprobe', 'snd_ctl_led'], check=True)
+if not Path('/sys/class/leds/platform::mute').exists():
+    subprocess.run(['/usr/sbin/modprobe', 'expertbook_mute_led'], check=True)
+
+cards = [p for p in Path('/sys/class/sound').glob('card[0-9]*')
+         if (p / 'id').read_text().strip() == 'sofhdadsp']
+if len(cards) != 1:
+    raise SystemExit('Expected exactly one built-in SOF sound card.')
+
+control = Path('/sys/class/sound/ctl-led/speaker') / cards[0].name
+(control / 'attach').write_text("name='Master Playback Switch'\n")
+print('Speaker mute LED follows Master Playback Switch on ' + cards[0].name)

@@ -1,0 +1,29 @@
+# Desktop helpers are started by /etc/dwm/autostart.sh.
+export GTK_USE_PORTAL=0
+
+# Attach the lock handler to this dwm login; Plasma has its own screen locker.
+case ":${XDG_CURRENT_DESKTOP-}:${DESKTOP_SESSION-}:" in
+    *:dwm:*)
+        # Use the same per-user bus as systemd and activated desktop services.
+        # Debian's Xsession runs later; the lock listener needs this now.
+        dwm_runtime="/run/user/$(id -u)"
+        if [ "${XDG_RUNTIME_DIR-}" = "$dwm_runtime" ] &&
+           [ -S "$dwm_runtime/bus" ]; then
+            export DBUS_SESSION_BUS_ADDRESS="unix:path=$dwm_runtime/bus"
+            unset DBUS_SESSION_BUS_PID DBUS_SESSION_BUS_WINDOWID
+            unset DBUS_STARTER_BUS_TYPE DBUS_STARTER_ADDRESS
+        fi
+        unset dwm_runtime
+        # Keep the desktop visible. XSecureLock controls blanking while locked.
+        xset s off
+        xset -dpms
+        if [ -n "${XDG_SESSION_ID-}" ] && [ -x /usr/bin/xsecurelock ]; then
+            if systemctl --user import-environment DISPLAY XAUTHORITY XDG_SESSION_TYPE XDG_CURRENT_DESKTOP &&
+               systemctl --user start "dwm-session-lock@${XDG_SESSION_ID}.service"; then
+                :
+            else
+                printf '%s\n' 'dwm: screen-lock listener failed to start; check the user journal.' >&2
+            fi
+        fi
+        ;;
+esac

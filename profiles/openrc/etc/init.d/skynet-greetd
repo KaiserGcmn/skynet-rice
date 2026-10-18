@@ -1,0 +1,29 @@
+#!/sbin/openrc-run
+# DRAFT: validate on Devuan/OpenRC; prefer the distribution's own greetd service.
+description="SKYNET greetd login manager"
+command="/usr/sbin/greetd"
+command_args="--config /etc/greetd/config.toml"
+command_background=true
+pidfile="/run/${RC_SVCNAME}.pid"
+
+depend() {
+    need dbus
+    after elogind
+    use logger
+    provide display-manager
+}
+
+start_pre() {
+    if [ ! -x "$command" ] || [ ! -r /etc/greetd/config.toml ]; then
+        eerror "Install greetd and review its configuration first"
+        return 1
+    fi
+    if ! getent passwd _greetd >/dev/null; then
+        eerror "The configured unprivileged _greetd account is missing"
+        return 1
+    fi
+    if pgrep -x greetd >/dev/null || pgrep -x sddm >/dev/null || pgrep -x lightdm >/dev/null; then
+        eerror "A login manager is already running"
+        return 1
+    fi
+}

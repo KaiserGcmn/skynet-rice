@@ -1,0 +1,56 @@
+#!/bin/sh
+# Graphic SKYNET greeter, with the existing TTY interface on failure.
+set -u
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 LANGUAGE=en_US:en
+# Use the same keyboard map as the console (Turkish on this machine).
+if [ -r /etc/default/keyboard ]; then
+    . /etc/default/keyboard
+    export XKB_DEFAULT_LAYOUT="${XKBLAYOUT:-tr}"
+    export XKB_DEFAULT_MODEL="${XKBMODEL:-pc105}"
+    export XKB_DEFAULT_VARIANT="${XKBVARIANT:-}"
+    export XKB_DEFAULT_OPTIONS="${XKBOPTIONS:-}"
+fi
+skynet_runtime=
+skynet_cleanup() {
+    if [ -n "$skynet_runtime" ]; then
+        rm -rf -- "$skynet_runtime"
+        skynet_runtime=
+    fi
+}
+trap skynet_cleanup EXIT
+trap 'exit 1' HUP INT TERM
+skynet_version=$(dpkg-query -W -f='${Version}' gtkgreet 2>/dev/null || :)
+# Do not keep using this locally built UI after an upstream security update.
+if [ "$skynet_version" = '0.8-1+b1' ] && [ -x /usr/bin/cage ] &&
+   [ -x /usr/local/libexec/greetd/gtkgreet-skynet ]; then
+    skynet_runtime=$(mktemp -d /tmp/skynet-greeter.XXXXXXXX) || skynet_runtime=
+    if [ -n "$skynet_runtime" ]; then
+        export XDG_RUNTIME_DIR="$skynet_runtime"
+        export XDG_SESSION_TYPE=wayland XDG_CURRENT_DESKTOP=Cage
+        export GDK_BACKEND=wayland GTK_THEME=Adwaita:dark GTK_USE_PORTAL=0
+        unset GTK_MODULES GTK_PATH LD_PRELOAD LD_LIBRARY_PATH DISPLAY WAYLAND_DISPLAY DBUS_SESSION_BUS_ADDRESS
+        if /usr/bin/cage -s -- /usr/local/libexec/greetd/gtkgreet-skynet \
+            --style /etc/greetd/skynet.css \
+            --command '/usr/local/libexec/greetd/start-x dbus-run-session dwm'; then
+            exit 0
+        fi
+        skynet_cleanup
+        unset XDG_RUNTIME_DIR XDG_SESSION_TYPE XDG_CURRENT_DESKTOP GDK_BACKEND GTK_THEME GTK_USE_PORTAL
+    fi
+fi
+# Functional fallback: keep the already installed login flow available.
+exec /usr/local/libexec/greetd/tuigreet-capslock --time --remember --remember-user-session --user-menu --asterisks --greeting '                       /\                       
+                     /----\                     
+                   /--------\                   
+             /\    \--------/    /\             
+           /----\    \----/    /----\           
+         /--------\    \/    /--------\         
+       /------------\      /------------\       
+     /----------------\  /----------------\     
+   /------------------|  |------------------\   
+ /--------------------|  |--------------------\ 
+_______________________  _______________________
+
+                  S K Y N E T                   
+         CYBERDYNE SYSTEMS CORPORATION          ' --xsessions /usr/share/xsessions --xsession-wrapper /usr/local/libexec/greetd/start-x --cmd '/usr/local/libexec/greetd/start-x dbus-run-session dwm' --theme 'border=red;title=lightred;text=white;greet=lightred;prompt=lightred;input=white;time=white;action=white;button=white;container=black' --width 70 --container-padding 1 --prompt-padding 1 --greet-align center --time-format '%d.%m.%Y / %H:%M'

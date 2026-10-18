@@ -1,0 +1,49 @@
+#!/usr/bin/python3
+"""Persist and apply the requested 80% ASUS battery charge ceiling."""
+import datetime
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+
+def run(*args):
+    return subprocess.run(args, check=True, capture_output=True, text=True)
+
+if os.geteuid() != 0:
+    raise SystemExit('Administrator authentication is required.')
+os.environ.update(PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', LC_ALL='C')
+if Path('/sys/class/dmi/id/product_name').read_text().strip() != 'ASUS EXPERTBOOK B3405CCA':
+    raise SystemExit('The laptop model differs from the expected model.')
+run('systemctl', 'is-active', '--quiet', 'tlp.service')
+run('systemctl', 'is-enabled', '--quiet', 'tlp.service')
+source=Path('/usr/local/share/expertbook/tlp/90-expertbook-b3405.conf')
+target=Path('/etc/tlp.d/90-expertbook-b3405.conf')
+threshold=Path('/sys/class/power_supply/BAT0/charge_control_end_threshold')
+if target.is_symlink():
+    raise SystemExit('Unexpected configuration symbolic link.')
+previous_limit=threshold.read_text().strip()
+backup=Path('/var/backups/tlp-expertbook') / ('charge-limit-' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f'))
+backup.mkdir(mode=0o700, parents=True)
+shutil.copy2(target, backup/target.name)
+(backup/'previous-limit.txt').write_text(previous_limit+'\n')
+try:
+    run('install', '-o', 'root', '-g', 'root', '-m', '644', str(source), str(target))
+    merged=backup/'effective.conf'
+    run('/usr/share/tlp/tlp-readconfs', '--outfile', str(merged), '--notrace')
+    text=merged.read_text()
+    for key, value in (('START_CHARGE_THRESH_BAT0', '0'), ('STOP_CHARGE_THRESH_BAT0', '80')):
+        if not re.search(r'^'+key+r'="?'+value+r'"?\s*$', text, re.MULTILINE):
+            raise RuntimeError('The active configuration does not contain the expected limit: '+key)
+    result=run('/usr/sbin/tlp', 'setcharge', '0', '80', 'BAT0')
+    print(result.stdout+result.stderr, flush=True)
+    if threshold.read_text().strip() != '80':
+        raise RuntimeError('The hardware did not accept the 80% charge limit.')
+    result=run('/usr/bin/tlp-stat', '-b')
+    (backup/'battery-after.txt').write_text(result.stdout+result.stderr)
+    print(result.stdout, flush=True)
+    print('Persistent charge limit verified: 80%. Backup: '+str(backup), flush=True)
+except Exception:
+    shutil.copy2(backup/target.name, target)
+    run('/usr/sbin/tlp', 'setcharge', '0', previous_limit, 'BAT0')
+    raise

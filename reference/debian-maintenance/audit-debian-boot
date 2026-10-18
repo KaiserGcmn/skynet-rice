@@ -1,0 +1,61 @@
+#!/usr/bin/python3
+"""Collect read-only boot diagnostics without restarting services."""
+import datetime
+import os
+from pathlib import Path
+import pwd
+import re
+import shutil
+import subprocess
+
+if os.geteuid() != 0:
+    raise SystemExit('Administrator access is required to read system boot logs.')
+os.environ.update(PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', LC_ALL='C')
+account = pwd.getpwuid(0)
+report = Path('/var/lib/expertbook/boot') / ('audit-' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
+report.mkdir(mode=0o700, parents=True)
+commands = {
+    'time.txt': ['systemd-analyze', 'time'],
+    'blame.txt': ['systemd-analyze', 'blame', '--no-pager'],
+    'chain.txt': ['systemd-analyze', 'critical-chain', 'greetd.service', 'graphical.target', '--no-pager'],
+    'kernel.txt': ['journalctl', '-b', '-k', '-o', 'short-monotonic', '--no-pager'],
+    'warnings.txt': ['journalctl', '-b', '--system', '-p', 'warning', '-o', 'short-monotonic', '--no-pager'],
+    'early-units.txt': ['journalctl', '-b', '-o', 'short-monotonic', '--no-pager', '-u', 'keyboard-setup.service',
+                        '-u', 'systemd-remount-fs.service', '-u', 'systemd-random-seed.service',
+                        '-u', 'systemd-udevd.service', '-u', 'systemd-fsck-root.service',
+                        '-u', 'greetd.service', '-u', 'NetworkManager-wait-online.service'],
+    'system-early.txt': ['journalctl', '-b', '--system', '-o', 'short-monotonic', '--no-pager'],
+    'disk-health.txt': ['smartctl', '-H', '-A', '/dev/nvme0'],
+    'pci.txt': ['lspci', '-Dnnk'],
+    'modules.txt': ['lsmod'],
+    'boot.svg': ['systemd-analyze', 'plot'],
+    'grub-menu.txt': ['cat', '/boot/grub/grub.cfg'],
+    'cmdline.txt': ['cat', '/proc/cmdline'],
+    'failed-units.txt': ['systemctl', '--failed', '--no-pager'],
+    'network-manager.txt': ['journalctl', '-b', '-u', 'NetworkManager.service', '-o', 'short-monotonic', '--no-pager'],
+    'tlp.txt': ['tlp-stat', '-s', '-b'],
+    'lsm.txt': ['cat', '/sys/kernel/security/lsm'],
+    'kernel-ring.txt': ['dmesg', '--color=never'],
+    'boot-id.txt': ['cat', '/proc/sys/kernel/random/boot_id'],
+}
+for name, command in commands.items():
+    if not shutil.which(command[0]):
+        continue
+    try:
+        result = subprocess.run(command, text=True, capture_output=True, timeout=30)
+        content = result.stdout + ('\nSTDERR:\n' + result.stderr if result.stderr else '')
+        if result.returncode:
+            content += '\nExit status: ' + str(result.returncode) + '\n'
+        if name == 'system-early.txt':
+            content = '\n'.join(line for line in content.splitlines()
+                                if (stamp := re.match(r'^\[\s*([0-9.]+)\]', line))
+                                and float(stamp.group(1)) <= 120) + '\n'
+    except subprocess.TimeoutExpired:
+        content = 'Read-only diagnostic timed out after 30 seconds.\n'
+    path = report / name
+    path.write_text(content)
+    path.chmod(0o600)
+    os.chown(path, account.pw_uid, account.pw_gid)
+os.chown(report, account.pw_uid, account.pw_gid)
+os.chown(report.parent, account.pw_uid, account.pw_gid)
+print(str(report), flush=True)

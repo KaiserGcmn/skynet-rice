@@ -1,0 +1,13 @@
+#!/bin/sh
+# Scope the compatibility helper to the greeter process.
+PATH=/usr/local/libexec/greetd/capslock-bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+# English interface only; keep the keyboard layout unchanged.
+LANG=en_US.UTF-8
+LC_ALL=en_US.UTF-8
+LANGUAGE=en_US:en
+export LANG LC_ALL LANGUAGE
+if [ -x /usr/local/libexec/tuigreet-battery ]; then
+    exec /usr/local/libexec/tuigreet-battery "$@"
+fi
+exec /usr/bin/tuigreet "$@"

@@ -1,0 +1,41 @@
+#!/bin/sh
+# Install the Debian tray bridge for all users; run the applet as a desktop user.
+set -eu
+
+if [ "$(id -u)" -ne 0 ]; then
+    exec sudo -- "$0" "$@"
+fi
+
+if [ "$(dpkg --print-architecture)" != amd64 ]; then
+    printf '%s\n' 'This installer is for amd64 systems.' >&2
+    exit 1
+fi
+
+tray_tmp=$(mktemp -d)
+trap 'rm -rf -- "$tray_tmp"' EXIT
+trap 'exit 1' HUP INT TERM
+tray_deb="$tray_tmp/snixembed.deb"
+tray_url='https://deb.debian.org/debian/pool/main/s/snixembed/snixembed_0.3.3-2_amd64.deb'
+
+printf '%s\n' 'Downloading snixembed from the official Debian archive...'
+curl --fail --location --show-error --proto '=https' --proto-redir '=https' \
+    --connect-timeout 15 --max-time 120 --output "$tray_deb" "$tray_url"
+test "$(dpkg-deb -f "$tray_deb" Package)" = snixembed
+test "$(dpkg-deb -f "$tray_deb" Version)" = 0.3.3-2
+test "$(dpkg-deb -f "$tray_deb" Architecture)" = amd64
+dpkg-deb -x "$tray_deb" "$tray_tmp/unpacked"
+
+tray_binary="$tray_tmp/unpacked/usr/bin/snixembed"
+tray_libraries=$(LC_ALL=C ldd "$tray_binary" 2>&1) || {
+    printf '%s\n' "$tray_libraries" >&2
+    exit 1
+}
+if printf '%s\n' "$tray_libraries" | grep -q 'not found'; then
+    printf '%s\n' 'Missing runtime library:' "$tray_libraries" >&2
+    exit 1
+fi
+
+install -d -m 755 /usr/local/bin /usr/local/share/doc/snixembed
+install -m 755 "$tray_binary" /usr/local/bin/snixembed
+cp -R "$tray_tmp/unpacked/usr/share/doc/snixembed/." /usr/local/share/doc/snixembed/
+printf '%s\n' 'Installed /usr/local/bin/snixembed. The shared dwm startup starts it in the user session.'

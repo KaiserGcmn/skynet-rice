@@ -1,0 +1,17 @@
+# Debian Xsession sources this after processing the requested desktop command.
+# greetd requests "dbus-run-session dwm", which otherwise creates a second bus
+# disconnected from systemd's user services. Prefer the existing user bus.
+# Keep the original command when the standard user bus is unavailable.
+case "${STARTUP-}" in
+    'dbus-run-session dwm')
+        dwm_runtime="/run/user/$(id -u)"
+        if [ "${XDG_RUNTIME_DIR-}" = "$dwm_runtime" ] &&
+           [ -S "$dwm_runtime/bus" ] && [ -x /usr/local/bin/dwm ]; then
+            export DBUS_SESSION_BUS_ADDRESS="unix:path=$dwm_runtime/bus"
+            unset DBUS_SESSION_BUS_PID DBUS_SESSION_BUS_WINDOWID
+            unset DBUS_STARTER_BUS_TYPE DBUS_STARTER_ADDRESS
+            STARTUP=/usr/local/bin/dwm
+        fi
+        unset dwm_runtime
+        ;;
+esac

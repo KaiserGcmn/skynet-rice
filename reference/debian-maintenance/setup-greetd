@@ -1,0 +1,252 @@
+#!/usr/bin/python3
+"""Stage greetd for the next boot without stopping the current display manager."""
+import argparse
+import configparser
+import datetime
+import json
+import os
+from pathlib import Path
+import pwd
+import shlex
+import shutil
+import subprocess
+import sys
+import tomllib
+
+PAYLOAD = Path(__file__).resolve().parent.parent / "share/expertbook/greetd"
+BACKUPS = Path("/var/backups/greetd-setup")
+CONFIG = Path("/etc/greetd/config.toml")
+PAM = Path("/etc/pam.d/greetd")
+DM_FILE = Path("/etc/X11/default-display-manager")
+
+
+def run(*args, **kwargs):
+    return subprocess.run(args, check=True, text=True, **kwargs)
+
+
+def select_manager(name):
+    binary = shutil.which(name)
+    if not binary:
+        raise RuntimeError(f"Display manager not found: {name}")
+    run("debconf-set-selections", input=f"greetd shared/default-x-display-manager select {name}\n")
+    DM_FILE.write_text(binary + "\n")
+
+
+def restore_sddm():
+    # Deliberately omit --now: an active graphical session must not be killed.
+    # Installation may have failed before the greetd unit even existed.
+    subprocess.run(["systemctl", "disable", "greetd.service"], check=False)
+    run("systemctl", "enable", "--force", "sddm.service")
+    select_manager("sddm")
+    print("SDDM is selected for the next boot. Restart when ready.", flush=True)
+
+
+def check_payload():
+    config = tomllib.loads((PAYLOAD / "config.toml").read_text())
+    assert config["terminal"]["vt"] == 1
+    assert "initial_session" not in config
+    argv = shlex.split(config["default_session"]["command"])
+    assert argv[0] == "/usr/bin/tuigreet"
+    assert argv[argv.index("--xsession-wrapper") + 1] == "/etc/greetd/start-x"
+    for name in ("start-x", "session-x"):
+        run("sh", "-n", str(PAYLOAD / name))
+    assert (PAYLOAD / "console.conf").is_file()
+    session_dir = Path("/usr/share/xsessions")
+    if not (session_dir / "dwm.desktop").is_file():
+        raise RuntimeError("The dwm session entry was not found.")
+    for path in sorted(session_dir.glob("*.desktop")):
+        entry = configparser.ConfigParser(interpolation=None, strict=False)
+        entry.read(path)
+        command = entry["Desktop Entry"]["Exec"]
+        executable = shlex.split(command)[0]
+        if not shutil.which(executable):
+            raise RuntimeError(f"Session command not found: {executable}")
+        print(f"Session: {entry['Desktop Entry']['Name']} -> {command}")
+    for command in ("startx", "xauth", "Xorg", "dbus-run-session", "dwm"):
+        if not shutil.which(command):
+            raise RuntimeError(f"Required command not found: {command}")
+    assert Path("/etc/X11/Xsession").is_file()
+    return config
+
+
+def install_file(source, target, mode):
+    target = Path(target)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    run("install", "-o", "root", "-g", "root", "-m", mode, str(source), str(target))
+
+
+def read_pam_stack(path, visited=None):
+    visited = set() if visited is None else visited
+    if path in visited:
+        return ""
+    visited.add(path)
+    lines = []
+    for raw in path.read_text().splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if not line:
+            continue
+        lines.append(line)
+        fields = line.split()
+        include = None
+        if fields[0] == "@include" and len(fields) == 2:
+            include = fields[1]
+        elif len(fields) >= 3 and fields[1] in ("include", "substack"):
+            include = fields[2]
+        if include:
+            lines.append(read_pam_stack(Path("/etc/pam.d") / include, visited))
+    return "\n".join(lines)
+
+
+def check_installed():
+    # Debian's tuigreet writes --help to stderr even on a successful exit.
+    result = run("/usr/bin/tuigreet", "--help", capture_output=True)
+    help_text = (result.stdout or "") + (result.stderr or "")
+    for option in ("--xsessions", "--xsession-wrapper", "--remember-user-session", "--user-menu"):
+        if option not in help_text:
+            raise RuntimeError(f"The installed tuigreet does not support this option: {option}")
+    # Debian greetd includes 'login', which in turn includes the common stacks.
+    pam_stack = read_pam_stack(PAM)
+    for include in ("common-auth", "common-account", "common-session"):
+        if include not in pam_stack:
+            raise RuntimeError(f"The greetd PAM configuration needs review: {include} is missing")
+    if "pam_systemd.so" not in pam_stack:
+        raise RuntimeError("pam_systemd was not found for the logind session.")
+    return PAM.read_text()
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--check", action="store_true", help="Check without changing files")
+    group.add_argument("--rollback", action="store_true", help="Restore SDDM for the next boot")
+    args = parser.parse_args()
+    # Do not inherit a user-writable executable search path while running as root.
+    if os.geteuid() == 0:
+        os.environ["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    if args.check:
+        check_payload()
+        if shutil.which("tuigreet") and PAM.is_file():
+            check_installed()
+            print("Installed tuigreet options and the PAM include chain were verified.")
+        print("TOML, shell syntax and installed X11 session commands were verified.")
+        return
+    if os.geteuid() != 0:
+        raise RuntimeError("Run with sudo for system installation: sudo /usr/local/sbin/setup-greetd")
+    if not Path("/usr/bin/sddm").is_file():
+        raise RuntimeError("SDDM must be installed as a fallback.")
+    if args.rollback:
+        restore_sddm()
+        return
+
+    check_payload()
+    active = subprocess.run(["systemctl", "is-active", "--quiet", "greetd.service"])
+    if active.returncode == 0:
+        raise RuntimeError("greetd is already running; the active login session will not be changed.")
+    manager_link = Path("/etc/systemd/system/display-manager.service")
+    if manager_link.resolve().name != "sddm.service":
+        raise RuntimeError("This migration script expects SDDM to be the default display manager.")
+    for path in (Path("/etc/systemd/system/greetd.service"), Path("/run/systemd/system/greetd.service")):
+        if path.exists() or path.is_symlink():
+            raise RuntimeError(f"A greetd unit already exists and must be reviewed first: {path}")
+
+    BACKUPS.mkdir(mode=0o700, parents=True, exist_ok=True)
+    backup = BACKUPS / datetime.datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+    backup.mkdir(mode=0o700)
+    shutil.copy2(DM_FILE, backup / "default-display-manager")
+    (backup / "display-manager-link").write_text(str(manager_link.resolve()) + "\n")
+    print(f"Yedek: {backup}", flush=True)
+    masked = False
+    completed = False
+    managed = {}
+    try:
+        # Prevent the new package's maintainer scripts from starting greetd on tty1.
+        run("systemctl", "mask", "--runtime", "greetd.service")
+        masked = True
+        run("debconf-set-selections", input="greetd shared/default-x-display-manager select sddm\n")
+        env = dict(os.environ, DEBIAN_FRONTEND="noninteractive", NEEDRESTART_MODE="l")
+        run("apt-get", "install", "--yes", "--no-remove", "greetd", "tuigreet", env=env)
+
+        packaged_config = tomllib.loads(CONFIG.read_text())
+        greeter_name = packaged_config.get("default_session", {}).get("user", "greeter")
+        account = pwd.getpwnam(greeter_name)
+        if account.pw_uid == 0:
+            raise RuntimeError("The greeter user must not be root.")
+        pam_text = check_installed()
+
+        paths = [CONFIG, PAM, Path("/etc/greetd/start-x"), Path("/etc/greetd/session-x"),
+                 Path("/etc/systemd/system/greetd.service.d/console.conf")]
+        for index, path in enumerate(paths):
+            if path.is_symlink():
+                raise RuntimeError(f"The existing symbolic link was not changed: {path}")
+            saved = backup / f"file-{index}"
+            managed[str(path)] = str(saved) if path.exists() else None
+            if path.exists():
+                shutil.copy2(path, saved)
+        (backup / "manifest.json").write_text(json.dumps(managed, indent=2))
+
+        config_text = (PAYLOAD / "config.toml").read_text().replace("__GREETER_USER__", greeter_name)
+        tomllib.loads(config_text)
+        rendered = backup / "new-config.toml"
+        rendered.write_text(config_text)
+        install_file(rendered, CONFIG, "644")
+        for name in ("start-x", "session-x"):
+            install_file(PAYLOAD / name, Path("/etc/greetd") / name, "755")
+        install_file(PAYLOAD / "console.conf", paths[-1], "644")
+
+        # Preserve optional wallet integration already used by the SDDM PAM stack.
+        sddm_pam = Path("/etc/pam.d/sddm").read_text()
+        additions = []
+        for line in sddm_pam.splitlines():
+            fields = line.split()
+            if len(fields) >= 3 and fields[0] in ("-auth", "-session") and fields[1] == "optional":
+                if fields[2] in ("pam_kwallet5.so", "pam_gnome_keyring.so"):
+                    present = any(fields[0].lstrip("-") == existing.split()[0].lstrip("-")
+                                  and fields[2] in existing for existing in pam_text.splitlines()
+                                  if existing.split() and not existing.lstrip().startswith("#"))
+                    if not present:
+                        additions.append(line)
+        if additions:
+            PAM.write_text(pam_text.rstrip() + "\n\n# Optional wallet integration retained from SDDM.\n"
+                           + "\n".join(additions) + "\n")
+
+        cache = Path("/var/cache/tuigreet")
+        if cache.is_symlink():
+            raise RuntimeError("The tuigreet cache directory is a symbolic link.")
+        cache.mkdir(mode=0o755, exist_ok=True)
+        os.chown(cache, account.pw_uid, account.pw_gid)
+        os.chmod(cache, 0o755)
+        run("systemctl", "unmask", "--runtime", "greetd.service")
+        masked = False
+        run("systemctl", "daemon-reload")
+        # Check unit syntax and referenced programs before replacing the boot selection.
+        run("systemd-analyze", "verify", "greetd.service")
+        run("systemctl", "disable", "sddm.service")
+        run("systemctl", "enable", "--force", "greetd.service")
+        select_manager("greetd")
+        if manager_link.resolve().name != "greetd.service":
+            raise RuntimeError("Could not link display-manager.service to greetd.")
+        run("systemctl", "is-enabled", "greetd.service")
+        completed = True
+        print("Installation completed. The current session remains active; restart when ready.")
+        print("Press F3 on the login screen to select an installed session; your last choice is remembered.")
+        print("Rollback: sudo /usr/local/sbin/setup-greetd --rollback")
+    finally:
+        if masked:
+            subprocess.run(["systemctl", "unmask", "--runtime", "greetd.service"])
+        if not completed:
+            for target, saved in managed.items():
+                if saved:
+                    shutil.copy2(saved, target)
+                else:
+                    Path(target).unlink(missing_ok=True)
+            subprocess.run(["systemctl", "daemon-reload"])
+            restore_sddm()
+            print("Migration did not complete; the boot selection was restored to SDDM.", file=sys.stderr)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (Exception, KeyboardInterrupt) as error:
+        print(f"Error: {error}", file=sys.stderr)
+        sys.exit(1)

@@ -1,0 +1,12 @@
+[Unit]
+Description=Check ExpertBook USB-C ports periodically during the user session
+
+[Timer]
+OnStartupSec=2min
+OnUnitInactiveSec=5min
+AccuracySec=30s
+WakeSystem=false
+Unit=expertbook-usbc-watch.service
+
+[Install]
+WantedBy=timers.target

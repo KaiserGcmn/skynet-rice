@@ -1,0 +1,123 @@
+--- a/vmd.c
++++ b/vmd.c
+@@ -76,6 +76,9 @@
+ 	 * proper power management of the SoC.
+ 	 */
+ 	VMD_FEAT_BIOS_PM_QUIRK		= (1 << 5),
++
++	/* MTL016: flush child DMA writes before dispatching its MSI. */
++	VMD_FEAT_INTERRUPT_QUIRK		= (1 << 7),
+ };
+ 
+ #define VMD_BIOS_PM_QUIRK_LTR	0x1003	/* 3145728 ns */
+@@ -98,6 +101,7 @@
+  * @irq:	back pointer to parent.
+  * @enabled:	true if driver enabled IRQ
+  * @virq:	the virtual IRQ value provided to the requesting driver.
++ * @flush_addr:	initiating device config address for the MTL016 flush.
+  *
+  * Every MSI/MSI-X IRQ requested for a device in a VMD domain will be mapped to
+  * a VMD IRQ using this structure.
+@@ -107,7 +111,13 @@
+ 	struct vmd_irq_list	*irq;
+ 	bool			enabled;
+ 	unsigned int		virq;
++	void __iomem		*flush_addr;
+ };
++
++struct vmd_dev;
++
++static void __iomem *vmd_cfg_addr(struct vmd_dev *vmd, struct pci_bus *bus,
++				  unsigned int devfn, int reg, int len);
+ 
+ /**
+  * struct vmd_irq_list - list of driver requested IRQs mapping to a VMD vector
+@@ -116,12 +126,14 @@
+  * @count:	number of child IRQs assigned to this vector; used to track
+  *		sharing.
+  * @virq:	The underlying VMD Linux interrupt number
++ * @vmd:	owner, whose cfg_lock serializes the MTL016 flush read.
+  */
+ struct vmd_irq_list {
+ 	struct list_head	irq_list;
+ 	struct srcu_struct	srcu;
+ 	unsigned int		count;
+ 	unsigned int		virq;
++	struct vmd_dev		*vmd;
+ };
+ 
+ struct vmd_dev {
+@@ -141,6 +153,7 @@
+ 	u8			first_vec;
+ 	char			*name;
+ 	int			instance;
++	unsigned long		features;
+ };
+ 
+ static inline struct vmd_dev *vmd_from_bus(struct pci_bus *bus)
+@@ -267,6 +280,12 @@
+ 	INIT_LIST_HEAD(&vmdirq->node);
+ 	vmdirq->irq = vmd_next_irq(vmd, desc);
+ 	vmdirq->virq = virq;
++	if (vmd->features & VMD_FEAT_INTERRUPT_QUIRK) {
++		struct pci_dev *pdev = msi_desc_to_pci_dev(desc);
++
++		vmdirq->flush_addr = vmd_cfg_addr(vmd, pdev->bus,
++						  pdev->devfn, PCI_VENDOR_ID, 2);
++	}
+ 
+ 	irq_domain_set_info(domain, virq, vmdirq->irq->virq, info->chip, vmdirq,
+ 			    handle_untracked_irq, vmd, NULL);
+@@ -671,8 +690,20 @@
+ 	int idx;
+ 
+ 	idx = srcu_read_lock(&irqs->srcu);
+-	list_for_each_entry_rcu(vmdirq, &irqs->irq_list, node)
++	list_for_each_entry_rcu(vmdirq, &irqs->irq_list, node) {
++		/*
++		 * MTL016: the MSI may have outrun the initiating device's
++		 * posted writes. A read completed by that device flushes
++		 * those writes before the child handler reads its queue.
++		 * Preserve the upstream cfg_lock scope around the read only.
++		 */
++		if (vmdirq->flush_addr) {
++			raw_spin_lock(&irqs->vmd->cfg_lock);
++			readw(vmdirq->flush_addr);
++			raw_spin_unlock(&irqs->vmd->cfg_lock);
++		}
+ 		generic_handle_irq(vmdirq->virq);
++	}
+ 	srcu_read_unlock(&irqs->srcu, idx);
+ 
+ 	return IRQ_HANDLED;
+@@ -703,6 +734,7 @@
+ 			return err;
+ 
+ 		INIT_LIST_HEAD(&vmd->irqs[i].irq_list);
++		vmd->irqs[i].vmd = vmd;
+ 		vmd->irqs[i].virq = pci_irq_vector(dev, i);
+ 		err = devm_request_irq(&dev->dev, vmd->irqs[i].virq,
+ 				       vmd_irq, IRQF_NO_THREAD,
+@@ -998,6 +1030,7 @@
+ 		return -ENOMEM;
+ 
+ 	vmd->dev = dev;
++	vmd->features = features;
+ 	vmd->instance = ida_alloc(&vmd_instance_ida, GFP_KERNEL);
+ 	if (vmd->instance < 0)
+ 		return vmd->instance;
+@@ -1120,7 +1153,7 @@
+ 	{PCI_VDEVICE(INTEL, 0xa77f),
+ 		.driver_data = VMD_FEATS_CLIENT,},
+ 	{PCI_VDEVICE(INTEL, 0x7d0b),
+-		.driver_data = VMD_FEATS_CLIENT,},
++		.driver_data = VMD_FEATS_CLIENT | VMD_FEAT_INTERRUPT_QUIRK,},
+ 	{PCI_VDEVICE(INTEL, 0xad0b),
+ 		.driver_data = VMD_FEATS_CLIENT,},
+ 	{PCI_VDEVICE(INTEL, PCI_DEVICE_ID_INTEL_VMD_9A0B),
+@@ -1148,4 +1181,4 @@
+ MODULE_AUTHOR("Intel Corporation");
+ MODULE_DESCRIPTION("Volume Management Device driver");
+ MODULE_LICENSE("GPL v2");
+-MODULE_VERSION("0.6");
++MODULE_VERSION("0.6-mtl016-b437504-deb13-113");

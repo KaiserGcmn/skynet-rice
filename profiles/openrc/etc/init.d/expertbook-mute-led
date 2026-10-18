@@ -1,0 +1,23 @@
+#!/sbin/openrc-run
+# DRAFT: validate module/ALSA ordering on the target ExpertBook.
+description="Connect ExpertBook speaker mute LED to the sound card"
+
+depend() {
+    need localmount
+    after modules alsasound alsa-utils
+}
+
+start() {
+    if [ ! -x /usr/local/libexec/expertbook-mute-led ]; then
+        eerror "ExpertBook LED helper is not installed"
+        return 1
+    fi
+    ebegin "Connecting ExpertBook mute LED"
+    /usr/local/libexec/expertbook-mute-led
+    eend $?
+}
+
+stop() {
+    # The LED connection requires no background process; keep the kernel driver loaded.
+    return 0
+}

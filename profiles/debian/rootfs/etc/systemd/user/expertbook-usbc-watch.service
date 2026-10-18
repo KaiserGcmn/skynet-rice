@@ -1,0 +1,11 @@
+[Unit]
+Description=Check ExpertBook USB-C port registration
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/expertbook-usbc-watch
+TimeoutStartSec=15s
+UMask=0077
+NoNewPrivileges=yes
+Nice=10
+IOSchedulingClass=idle

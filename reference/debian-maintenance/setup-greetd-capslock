@@ -1,0 +1,140 @@
+#!/usr/bin/python3
+"""Fix the Caps Lock indicator for Debian's CtrlL_Lock console keymap."""
+import argparse
+import datetime
+import gzip
+import json
+import os
+from pathlib import Path
+import pwd
+import re
+import shlex
+import shutil
+import subprocess
+import tomllib
+
+PAYLOAD = Path(__file__).resolve().parent.parent / 'share/expertbook/greetd-capslock'
+CONFIG = Path('/etc/greetd/config.toml')
+WRAPPER = '/etc/greetd/tuigreet-capslock'
+RULE = Path('/etc/udev/rules.d/90-console-capslock.rules')
+FILES = [
+    ('kbdinfo', Path('/etc/greetd/capslock-bin/kbdinfo'), '755'),
+    ('tuigreet-capslock', Path(WRAPPER), '755'),
+    ('90-console-capslock.rules', RULE, '644'),
+]
+
+
+def run(*args, **kwargs):
+    return subprocess.run(args, check=True, text=True, capture_output=True, **kwargs)
+
+
+def preflight():
+    for name in ('kbdinfo', 'tuigreet-capslock'):
+        run('/bin/sh', '-n', str(PAYLOAD / name))
+    run('/usr/bin/udevadm', 'verify', str(PAYLOAD / RULE.name))
+    keymap = gzip.open('/etc/console-setup/cached_UTF-8_del.kmap.gz', 'rt').read()
+    caps = re.search(r'^keycode\s+58\s*=\s*(.*)$', keymap, re.MULTILINE)
+    if not caps or set(caps[1].split()) != {'CtrlL_Lock'}:
+        raise RuntimeError('This fix is only for the CtrlL_Lock console keymap.')
+    leds = list(Path('/sys/class/leds').glob('input*::capslock'))
+    if not leds:
+        raise RuntimeError('The Caps Lock LED device was not found.')
+    triggers = {}
+    for led in leds:
+        choices = (led / 'trigger').read_text()
+        if 'kbd-ctrlllock' not in choices.replace('[', '').replace(']', '').split():
+            raise RuntimeError(f'Gerekli LED tetikleyicisi yok: {led}')
+        triggers[str(led / 'trigger')] = re.search(r'\[([^]]+)\]', choices)[1]
+    old_text = CONFIG.read_text()
+    old = tomllib.loads(old_text)
+    command = old['default_session']['command']
+    argv = shlex.split(command)
+    if argv[0] not in ('/usr/bin/tuigreet', WRAPPER):
+        raise RuntimeError('Unexpected greeter command; the configuration was not changed.')
+    new_command = command.replace(argv[0], WRAPPER, 1)
+    new_text, count = re.subn(r'^command = .*$',
+                             lambda _: 'command = ' + json.dumps(new_command),
+                             old_text, flags=re.MULTILINE)
+    expected = tomllib.loads(old_text)
+    expected['default_session']['command'] = new_command
+    if count != 1 or tomllib.loads(new_text) != expected:
+        raise RuntimeError('Could not verify the configuration conversion.')
+    account = pwd.getpwnam(old['default_session']['user'])
+    if account.pw_uid == 0:
+        raise RuntimeError('The greeter must not use the root account.')
+    for executable in ('/usr/bin/tuigreet', '/usr/bin/kbdinfo'):
+        if not os.access(executable, os.X_OK):
+            raise RuntimeError(f'Gerekli komut yok: {executable}')
+    for target in [CONFIG] + [target for _, target, _ in FILES]:
+        if target.is_symlink() or target.parent.is_symlink():
+            raise RuntimeError(f'Unexpected symbolic link: {target}')
+    return new_text, account, triggers
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--check', action='store_true')
+    args = parser.parse_args()
+    os.environ.update(PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', LC_ALL='C')
+    config_text, account, triggers = preflight()
+    if args.check:
+        print('Turkish console keymap, LED support, udev rule and greeter command were verified.')
+        print('Yeni greeter komutu: ' + tomllib.loads(config_text)['default_session']['command'])
+        return
+    if os.geteuid() != 0:
+        raise SystemExit('Administrator authentication is required to apply system settings.')
+    backup = Path('/var/backups/greetd-capslock') / datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
+    backup.mkdir(mode=0o700, parents=True)
+    targets = [CONFIG] + [target for _, target, _ in FILES]
+    manifest = {}
+    for index, target in enumerate(targets):
+        saved = backup / f'file-{index}'
+        manifest[str(target)] = str(saved) if target.exists() else None
+        if target.exists():
+            shutil.copy2(target, saved)
+    (backup / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+    (backup / 'led-triggers.json').write_text(json.dumps(triggers, indent=2) + '\n')
+    print('Yedek: ' + str(backup), flush=True)
+    try:
+        for source, target, mode in FILES:
+            target.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
+            run('install', '-o', 'root', '-g', 'root', '-m', mode, str(PAYLOAD / source), str(target))
+        staged = backup / 'new-config.toml'
+        staged.write_text(config_text)
+        run('install', '-o', 'root', '-g', 'root', '-m', '644', str(staged), str(CONFIG))
+        run('udevadm', 'control', '--reload-rules')
+        for path in triggers:
+            Path(path).write_text('kbd-ctrlllock\n')
+            if '[kbd-ctrlllock]' not in Path(path).read_text():
+                raise RuntimeError('Could not apply the LED trigger: ' + path)
+        # Exercise the exact launcher as the unprivileged greeter without
+        # entering its interactive UI or touching the active graphical session.
+        result = run('runuser', '-u', account.pw_name, '--', WRAPPER, '--help')
+        if '--xsession-wrapper' not in result.stdout + result.stderr:
+            raise RuntimeError('Could not verify the greeter launcher.')
+        led_values = [Path(path).parent.joinpath('brightness').read_text().strip() for path in triggers]
+        indicator = subprocess.run(['runuser', '-u', account.pw_name, '--',
+                                    '/etc/greetd/capslock-bin/kbdinfo', 'gkbled', 'capslock'],
+                                   capture_output=True, text=True)
+        if indicator.returncode not in (0, 1) or indicator.stderr:
+            raise RuntimeError('The greeter could not read the LED state: ' + indicator.stderr)
+        print('Caps Lock LED tetikleyicisi: kbd-ctrlllock', flush=True)
+        print('Successfully read the state as the greeter user; LED=' + ','.join(led_values)
+              + ', indicator=' + ('on' if indicator.returncode == 0 else 'off'), flush=True)
+        print('Installation completed. The login screen change will take effect after restarting.', flush=True)
+    except Exception:
+        for target, saved in manifest.items():
+            if saved:
+                shutil.copy2(saved, target)
+            else:
+                Path(target).unlink(missing_ok=True)
+        for path, previous in triggers.items():
+            if Path(path).exists():
+                Path(path).write_text(previous + '\n')
+        subprocess.run(['udevadm', 'control', '--reload-rules'], check=False)
+        print('An error occurred; the previous files and LED setting were restored.', flush=True)
+        raise
+
+
+if __name__ == '__main__':
+    main()

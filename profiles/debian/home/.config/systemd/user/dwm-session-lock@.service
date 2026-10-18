@@ -1,0 +1,12 @@
+[Unit]
+Description=Handle screen lock requests for dwm session %I
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/python3 -I /usr/local/libexec/dwm-session-lock %I
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=5
+UMask=0077
+LimitCORE=0
+NoNewPrivileges=yes

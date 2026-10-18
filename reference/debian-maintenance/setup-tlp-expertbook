@@ -1,0 +1,199 @@
+#!/usr/bin/python3
+"""Install and verify the selected TLP profile for this ASUS ExpertBook."""
+import argparse
+import datetime
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+import time
+
+SOURCE = Path('/usr/local/share/expertbook/tlp/90-expertbook-b3405.conf')
+TARGET = Path('/etc/tlp.d/90-expertbook-b3405.conf')
+USB_RULE_SOURCE = SOURCE.parent / '90-usb-no-autosuspend.rules'
+USB_RULE_TARGET = Path('/etc/udev/rules.d/90-usb-no-autosuspend.rules')
+PCI_USB_AUDIO = ('0000:00:0d.0', '0000:00:14.0', '0000:00:1f.3')
+
+
+def run(*args, **kwargs):
+    return subprocess.run(args, check=True, text=True, capture_output=True, **kwargs)
+
+
+def read(path):
+    return Path(path).read_text().strip()
+
+
+def assignments(text):
+    settings = {}
+    for line in text.splitlines():
+        match = re.match(r'^([A-Z][A-Z0-9_]*)=(.*)$', line.strip())
+        if match:
+            settings[match[1]] = match[2].strip().strip('"')
+    return settings
+
+
+def state():
+    result = {'profile': read('/sys/firmware/acpi/platform_profile')}
+    for name in ('no_turbo', 'min_perf_pct', 'max_perf_pct', 'hwp_dynamic_boost'):
+        result[name] = read('/sys/devices/system/cpu/intel_pstate/' + name)
+    for field in ('scaling_governor', 'energy_performance_preference'):
+        result[field] = sorted({read(p) for p in Path('/sys/devices/system/cpu/cpufreq').glob('policy*/' + field)})
+    result['charge_limit'] = read('/sys/class/power_supply/BAT0/charge_control_end_threshold')
+    result['sound_power_save'] = read('/sys/module/snd_hda_intel/parameters/power_save')
+    result['sound_controller'] = read('/sys/module/snd_hda_intel/parameters/power_save_controller')
+    result['usb'] = {}
+    for device in Path('/sys/bus/usb/devices').glob('*'):
+        if not (device / 'idVendor').exists():
+            continue
+        for name in ('control', 'autosuspend_delay_ms'):
+            path = device / 'power' / name
+            if path.exists():
+                result['usb'][str(path)] = read(path)
+    result['pci_usb_audio'] = {
+        address: read('/sys/bus/pci/devices/' + address + '/power/control')
+        for address in PCI_USB_AUDIO
+    }
+    return result
+
+
+def verify(mode):
+    current = state()
+    settings = assignments(SOURCE.read_text())
+    assert current['profile'] == settings['PLATFORM_PROFILE_ON_' + mode], current
+    assert current['energy_performance_preference'] == [settings['CPU_ENERGY_PERF_POLICY_ON_' + mode]], current
+    assert current['scaling_governor'] == [settings['CPU_SCALING_GOVERNOR_ON_' + mode]], current
+    assert current['no_turbo'] == str(1 - int(settings['CPU_BOOST_ON_' + mode])), current
+    assert current['max_perf_pct'] == settings['CPU_MAX_PERF_ON_' + mode], current
+    assert current['hwp_dynamic_boost'] == settings['CPU_HWP_DYN_BOOST_ON_' + mode], current
+    assert current['sound_power_save'] == '0', current
+    assert current['sound_controller'] == 'N', current
+    assert all(value == 'on' for value in current['pci_usb_audio'].values()), current
+    assert all(value == ('on' if path.endswith('/control') else '-1')
+               for path, value in current['usb'].items()), current
+    print(mode + ' profile verified: ' + json.dumps(current), flush=True)
+    return current
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--apply', action='store_true')
+    args = parser.parse_args()
+    os.environ.update(PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', LC_ALL='C')
+    if read('/sys/class/dmi/id/product_name') != 'ASUS EXPERTBOOK B3405CCA':
+        raise RuntimeError('This profile will not be applied to a different laptop model.')
+    if read('/sys/devices/system/cpu/intel_pstate/status') != 'active':
+        raise RuntimeError('intel_pstate active modu bekleniyordu.')
+    choices = read('/sys/firmware/acpi/platform_profile_choices').split()
+    assert {'balanced', 'quiet'}.issubset(choices)
+    settings = assignments(SOURCE.read_text())
+    for key in settings:
+        assert key in Path('/etc/tlp.conf').read_text() or key in Path('/usr/share/tlp/defaults.conf').read_text(), key
+    run('sh', '-n', str(SOURCE))
+    run('udevadm', 'verify', str(USB_RULE_SOURCE))
+    for address in PCI_USB_AUDIO:
+        assert Path('/sys/bus/pci/devices', address, 'power/control').is_file(), address
+    print('TLP 1.8 settings and ASUS/Intel hardware support were verified.', flush=True)
+    if not args.apply:
+        return
+    if os.geteuid() != 0:
+        raise RuntimeError('Administrator authentication is required to apply these changes.')
+    for service in ('power-profiles-daemon', 'tuned', 'auto-cpufreq', 'laptop-mode', 'powertop'):
+        result = subprocess.run(['systemctl', 'is-active', '--quiet', service + '.service'])
+        if result.returncode == 0:
+            raise RuntimeError('A potentially conflicting service is running: ' + service)
+    if TARGET.is_symlink() or USB_RULE_TARGET.is_symlink():
+        raise RuntimeError('The destination configuration is a symbolic link.')
+    backup = Path('/var/backups/tlp-expertbook') / datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
+    backup.mkdir(parents=True, mode=0o700)
+    print('Yedek: ' + str(backup), flush=True)
+    shutil.copy2('/etc/tlp.conf', backup / 'tlp.conf')
+    shutil.copytree('/etc/tlp.d', backup / 'tlp.d', symlinks=True)
+    before = state()
+    (backup / 'hardware-before.json').write_text(json.dumps(before, indent=2))
+    previous = TARGET.read_bytes() if TARGET.exists() else None
+    previous_usb_rule = USB_RULE_TARGET.read_bytes() if USB_RULE_TARGET.exists() else None
+    if previous_usb_rule is not None:
+        shutil.copy2(USB_RULE_TARGET, backup / USB_RULE_TARGET.name)
+    diagnostics = run('/usr/bin/tlp-stat', '-s', '-p', '-b')
+    (backup / 'tlp-before.txt').write_text(diagnostics.stdout + diagnostics.stderr)
+    original_enabled = subprocess.run(['systemctl', 'is-enabled', '--quiet', 'tlp.service']).returncode == 0
+    completed = False
+    try:
+        run('install', '-o', 'root', '-g', 'root', '-m', '644', str(SOURCE), str(TARGET))
+        run('install', '-o', 'root', '-g', 'root', '-m', '644', str(USB_RULE_SOURCE), str(USB_RULE_TARGET))
+        run('udevadm', 'control', '--reload-rules')
+        # USB_AUTOSUSPEND=0 alone does not reset already enabled autosuspend.
+        # Update current devices without reconnecting or resetting them.
+        for path in state()['usb']:
+            target = Path(path)
+            try:
+                target.write_text('on\n' if path.endswith('/control') else '-1\n')
+            except FileNotFoundError:
+                pass  # The device was unplugged during the operation.
+        merged = backup / 'effective.conf'
+        run('/usr/share/tlp/tlp-readconfs', '--outfile', str(merged), '--notrace')
+        effective = assignments(merged.read_text())
+        for key, value in settings.items():
+            if effective.get(key) != value:
+                raise RuntimeError('Another configuration overrides this setting: ' + key)
+        run('systemctl', 'enable', '--now', 'tlp.service')
+        # Verify both profiles briefly, then restore automatic power-source detection.
+        tested = {}
+        try:
+            for command, mode in (('ac', 'AC'), ('bat', 'BAT')):
+                result = run('/usr/sbin/tlp', command)
+                (backup / ('apply-' + mode + '.txt')).write_text(result.stdout + result.stderr)
+                if 'Error:' in result.stdout + result.stderr:
+                    raise RuntimeError('TLP reported an error while applying settings: ' + mode)
+                time.sleep(1)
+                tested[mode] = verify(mode)
+        finally:
+            run('/usr/sbin/tlp', 'start')
+        mode = 'AC' if read('/sys/class/power_supply/ADP1/online') == '1' else 'BAT'
+        final = verify(mode)
+        expected_limit = settings.get('STOP_CHARGE_THRESH_BAT0', before['charge_limit'])
+        if final['charge_limit'] != expected_limit:
+            raise RuntimeError('The battery charge limit does not match the configured value.')
+        run('systemctl', 'is-active', '--quiet', 'tlp.service')
+        diagnostics = run('/usr/bin/tlp-stat', '-s', '-p', '-b', '-c', '-u', '-e')
+        (backup / 'tlp-after.txt').write_text(diagnostics.stdout + diagnostics.stderr)
+        (backup / 'verification.json').write_text(json.dumps({'profiles': tested, 'final': final}, indent=2))
+        completed = True
+        print('TLP is enabled. Automatic AC/battery switching is active; both profiles were verified on the hardware.', flush=True)
+        print('Charge limit: ' + final['charge_limit'] + '%; current power source: ' + mode, flush=True)
+        print('USB and audio power saving are disabled on both AC and battery; controllers and USB devices were verified.', flush=True)
+    finally:
+        if not completed:
+            if previous is None:
+                TARGET.unlink(missing_ok=True)
+            else:
+                TARGET.write_bytes(previous)
+            if previous_usb_rule is None:
+                USB_RULE_TARGET.unlink(missing_ok=True)
+            else:
+                USB_RULE_TARGET.write_bytes(previous_usb_rule)
+            subprocess.run(['udevadm', 'control', '--reload-rules'])
+            subprocess.run(['/usr/sbin/tlp', 'start'])
+            for path, value in before['usb'].items():
+                if Path(path).exists():
+                    Path(path).write_text(value + '\n')
+            for address, value in before['pci_usb_audio'].items():
+                Path('/sys/bus/pci/devices', address, 'power/control').write_text(value + '\n')
+            # Restore the CPU/profile values that were not configured previously.
+            Path('/sys/firmware/acpi/platform_profile').write_text(before['profile'])
+            for name in ('no_turbo', 'min_perf_pct', 'max_perf_pct', 'hwp_dynamic_boost'):
+                Path('/sys/devices/system/cpu/intel_pstate', name).write_text(before[name])
+            if not original_enabled:
+                subprocess.run(['systemctl', 'disable', 'tlp.service'])
+            print('The new configuration was rolled back; details: ' + str(backup), file=sys.stderr)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as error:
+        print('Error: ' + str(error), file=sys.stderr)
+        sys.exit(1)

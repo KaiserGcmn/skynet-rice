@@ -14,17 +14,9 @@ ile çalışan, kaynaktan derlenen bir DWM masaüstü.
 
 </div>
 
-## Galeri
-
 | Giriş ekranı | Kilit ekranı |
 | :---: | :---: |
 | ![Giriş](docs/screenshots/greeter-rotating-emblem.png) | ![Biyometrik kilit](docs/screenshots/lock-biometric.png) |
-| **Fastfetch paneli** | **Dosya yöneticisi** |
-| ![Fastfetch](docs/screenshots/fastfetch-panel.png) | ![Thunar](docs/screenshots/thunar-skynet-black-red.png) |
-| **VS Code** | **VLC** |
-| ![VS Code](docs/screenshots/vscode-skynet-ui.png) | ![VLC](docs/screenshots/vlc-skynet.png) |
-
-![DWM bar](docs/screenshots/dwm-bar.png)
 
 ## Özellikler
 

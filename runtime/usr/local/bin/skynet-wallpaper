@@ -1,0 +1,227 @@
+#!/usr/bin/python3
+"""Display a GIF, video or still image behind DWM using xwinwrap and mpv."""
+
+import argparse
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import signal
+import socket
+import subprocess
+import sys
+import tempfile
+import time
+
+
+def request(endpoint, command):
+    with socket.socket(socket.AF_UNIX) as connection:
+        connection.settimeout(2)
+        connection.connect(str(endpoint))
+        connection.sendall(json.dumps({"command": command, "request_id": 1}).encode() + b"\n")
+        with connection.makefile("rb") as stream:
+            for line in stream:
+                reply = json.loads(line)
+                if reply.get("request_id") == 1:
+                    if reply.get("error") != "success":
+                        raise RuntimeError(reply.get("error", "mpv command failed"))
+                    return reply.get("data")
+    raise RuntimeError("Wallpaper player closed the connection")
+
+
+def configured_file(config):
+    try:
+        path = Path(json.loads(config.read_text())["path"]).expanduser()
+        if not path.is_absolute():
+            path = Path.home() / path
+        if path.is_file():
+            return path.resolve()
+    except (FileNotFoundError, KeyError, ValueError, TypeError):
+        pass
+    return Path.home() / "wallpapers/skynet.png"
+
+
+def save_config(config, path):
+    config.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary = tempfile.mkstemp(prefix=".wallpaper-", dir=config.parent)
+    try:
+        with os.fdopen(descriptor, "w") as output:
+            json.dump({"path": str(path)}, output, ensure_ascii=False)
+            output.write("\n")
+        os.replace(temporary, config)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
+
+
+def cache_directory():
+    return Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "skynet-wallpaper"
+
+
+def playback_file(path):
+    # Decode GIF once on selection; VA-API can then play the same animation cheaply.
+    if path.suffix.lower() != ".gif" or shutil.which("ffmpeg") is None:
+        return path
+    with path.open("rb") as source:
+        digest = hashlib.file_digest(source, "sha256").hexdigest()
+    cache = cache_directory()
+    cache.mkdir(parents=True, exist_ok=True)
+    target = cache / f"gif-{digest}.mp4"
+    if target.is_file() and target.stat().st_size:
+        return target
+    descriptor, temporary = tempfile.mkstemp(prefix=".encoding-", suffix=".mp4", dir=cache)
+    os.close(descriptor)
+    try:
+        result = subprocess.run([
+            "/usr/bin/nice", "-n", "10", "/usr/bin/ffmpeg", "-nostdin", "-y",
+            "-hide_banner", "-loglevel", "error", "-i", str(path), "-an",
+            "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2", "-c:v", "libx264",
+            "-preset", "veryfast", "-crf", "16", "-pix_fmt", "yuv420p",
+            "-fps_mode", "vfr", "-threads", "2", "-movflags", "+faststart", temporary,
+        ], capture_output=True, text=True, timeout=45)
+        if result.returncode:
+            raise RuntimeError(result.stderr.strip())
+        os.replace(temporary, target)
+        return target
+    except (OSError, subprocess.TimeoutExpired, RuntimeError) as error:
+        print(f"skynet-wallpaper: using original GIF: {error}", file=sys.stderr)
+        return path
+    finally:
+        Path(temporary).unlink(missing_ok=True)
+
+
+def prune_cache(current):
+    for path in cache_directory().glob("gif-*.mp4"):
+        if path != current and re.fullmatch(r"gif-[0-9a-f]{64}\.mp4", path.name):
+            path.unlink()
+
+
+STARTUP_TIMEOUT = 30
+STARTUP_ATTEMPTS = 2
+
+
+def wait_for_file(endpoint, path=None, child=None):
+    # Cold GPU/session startup may take longer than eight seconds. This runs
+    # in autostart's background job, never in the window manager's startup path.
+    deadline = time.monotonic() + STARTUP_TIMEOUT
+    while time.monotonic() < deadline:
+        if child is not None and child.poll() is not None:
+            raise RuntimeError("Wallpaper player exited before becoming ready")
+        try:
+            if ((path is None or request(endpoint, ["get_property", "path"]) == str(path))
+                    and request(endpoint, ["get_property", "video-params"])
+                    and request(endpoint, ["get_property", "vo-configured"])
+                    and not request(endpoint, ["get_property", "idle-active"])):
+                return
+        except (OSError, ValueError, RuntimeError):
+            pass
+        time.sleep(0.1)
+    raise RuntimeError(f"Wallpaper did not become ready within {STARTUP_TIMEOUT}s")
+
+
+def stop_player(child):
+    # This is our newly created process group, not any other desktop player.
+    try:
+        os.killpg(child.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    try:
+        child.wait(timeout=3)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(child.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        child.wait()
+
+
+def start(runtime, endpoint, path):
+    with (runtime / "skynet-wallpaper.lock").open("a") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            # A held lock is not proof that mpv has finished initializing.
+            wait_for_file(endpoint)
+            return
+        command = [
+            "/usr/bin/nice", "-n", "10", "/usr/local/bin/xwinwrap",
+            "-ovr", "-ni", "-nf", "-b", "-s", "-st", "-sp", "-fdt",
+            "-pause-hidden", str(endpoint), "--",
+            "/usr/bin/mpv", "-wid", "WID", "--no-config", "--load-scripts=no",
+            "--profile=fast", "--vo=gpu", "--gpu-api=opengl", "--gpu-context=x11egl",
+            "--hwdec=auto-safe",
+            "--vd-lavc-threads=1", "--scale=bilinear", "--dscale=bilinear",
+            "--dither-depth=no", "--cache=no", "--no-audio", "--no-sub",
+            "--loop-file=inf", "--image-display-duration=inf", "--keep-open=yes",
+            "--panscan=1", "--osc=no", "--osd-level=0", "--terminal=yes",
+            "--msg-level=all=error",
+            "--input-default-bindings=no", "--input-vo-keyboard=no",
+            "--input-cursor=no", "--input-cursor-passthrough=yes",
+            "--input-terminal=no", "--cursor-autohide=no", "--stop-screensaver=no",
+            "--input-ipc-server=" + str(endpoint), "--", str(path),
+        ]
+        # Only xwinwrap/mpv remain resident; their inherited lock prevents duplicates.
+        for attempt in range(STARTUP_ATTEMPTS):
+            endpoint.unlink(missing_ok=True)
+            # Errors reach the existing session log. No separate log/cache
+            # file or permanent watchdog is created.
+            child = subprocess.Popen(command, stdin=subprocess.DEVNULL,
+                                     stdout=sys.stderr, stderr=sys.stderr,
+                                     start_new_session=True, pass_fds=(lock.fileno(),))
+            try:
+                wait_for_file(endpoint, path, child)
+                return
+            except RuntimeError as error:
+                stop_player(child)
+                endpoint.unlink(missing_ok=True)
+                if attempt + 1 == STARTUP_ATTEMPTS:
+                    raise
+                print(f"skynet-wallpaper: {error}; retrying once", file=sys.stderr)
+                time.sleep(1)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("action", choices=("start", "set", "stop", "status"), nargs="?", default="start")
+    parser.add_argument("file", nargs="?", type=Path)
+    args = parser.parse_args()
+    if args.action == "set" and args.file is None:
+        parser.error("set requires a local image, GIF or video path")
+    os.umask(0o077)
+    runtime = Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"))
+    config = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "skynet/wallpaper.json"
+    endpoint = runtime / "skynet-wallpaper.sock"
+    try:
+        with (runtime / "skynet-wallpaper-control.lock").open("a") as control:
+            fcntl.flock(control, fcntl.LOCK_EX)
+            if args.action == "status":
+                actual = request(endpoint, ["get_property", "path"])
+                print(f"Selected: {configured_file(config)}\nPlaying: {actual}")
+            elif args.action == "stop":
+                try:
+                    request(endpoint, ["quit"])
+                except FileNotFoundError:
+                    pass
+            else:
+                path = args.file.expanduser().resolve() if args.file else configured_file(config)
+                if not path.is_file() or not os.access(path, os.R_OK):
+                    raise RuntimeError(f"Wallpaper file not readable: {path}")
+                playback = playback_file(path)
+                start(runtime, endpoint, playback)
+                if args.action == "set":
+                    if request(endpoint, ["get_property", "path"]) != str(playback):
+                        request(endpoint, ["loadfile", str(playback), "replace"])
+                    wait_for_file(endpoint, playback)
+                    save_config(config, path)
+                    print(f"Wallpaper saved: {path}")
+                    prune_cache(playback)
+    except (OSError, ValueError, RuntimeError) as error:
+        print(f"skynet-wallpaper: {error}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -22,6 +22,7 @@
  */
 #include <errno.h>
 #include <locale.h>
+#include <math.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -76,7 +77,8 @@ enum { SchemeNorm, SchemeSel, SchemeStatusCPU, SchemeStatusBAT,
        SchemeStatusDate, SchemeStatusTime, SchemeStatusBATMeter,
        SchemeStatusBATCell1, SchemeStatusBATCell2, SchemeStatusBATCell3,
        SchemeStatusBATCell4, SchemeStatusBATCell5,
-       SchemeStatusCPUBadge, SchemeStatusCPUMeter }; /* color schemes */
+       SchemeStatusCPUBadge, SchemeStatusCPUMeter,
+       SchemeBarTitle, SchemeBarTagSel, SchemeBarLayout, SchemeStatusLabel }; /* color schemes */
 enum { NetSupported, NetWMName, NetWMState, NetWMCheck,
        NetSystemTray, NetSystemTrayOP, NetSystemTrayOrientation, NetSystemTrayOrientationHorz,
        NetWMFullscreen, NetActiveWindow, NetWMWindowType,
@@ -822,61 +824,364 @@ cpupercent(const char *text)
 	return errno || value > 100 || *end != '%' || end[1] ? -1 : (int)value;
 }
 
-/* Fixed-width instrument: chamfered badge, ten diagonal slots, exact percent. */
+/* A single enclosure around the complete instrument strip. */
+static void
+statusframe(int x, int w)
+{
+	const int bottom = bh - (int)barlinepx - 2;
+	XPoint edge[7];
+
+	if (w < 12 || bottom < 8)
+		return;
+	edge[0] = (XPoint){ x + 1, 5 };
+	edge[1] = (XPoint){ x + 5, 1 };
+	edge[2] = (XPoint){ x + w - 2, 1 };
+	edge[3] = (XPoint){ x + w - 2, bottom - 4 };
+	edge[4] = (XPoint){ x + w - 6, bottom };
+	edge[5] = (XPoint){ x + 1, bottom };
+	edge[6] = edge[0];
+	XSetForeground(dpy, drw->gc, scheme[SchemeStatusCPU][ColBorder].pixel);
+	XDrawLines(dpy, drw->drawable, drw->gc, edge, 7, CoordModeOrigin);
+	XSetForeground(dpy, drw->gc, scheme[SchemeStatusCPUMeter][ColFg].pixel);
+	XDrawLine(dpy, drw->drawable, drw->gc, x + 5, 1,
+	          x + MIN(w - 2, 38), 1);
+}
+
+/* Compact CPU instrument: exact percentage and a six-part hexagonal dial. */
 static int
 cpupanel(int x, const char *text, int render)
 {
-	const int labelw = drw_fontset_getwidth(drw, "CPU") + 2 * statuspadding;
-	const int meterw = 71, gap = 10;
+	const int iconw = 16, gap = 7, meterw = 28;
+	const int labelw = drw_fontset_getwidth(drw, "CPU");
 	const int valuew = drw_fontset_getwidth(drw, "100%");
-	const int meterx = x + 2 + labelw + 6 + gap;
-	const int valuex = meterx + meterw + gap;
-	const int w = valuex - x + valuew + statuspadding + 2;
-	const int h = bh - (int)barlinepx - 4;
-	int percent, filled, slot, sx, sy, sh;
+	const int iconx = x + statuspadding + 2;
+	const int labelx = iconx + iconw + gap;
+	const int valuex = labelx + labelw + gap;
+	const int meterx = valuex + valuew + gap;
+	const int w = meterx - x + meterw + statuspadding + 2;
+	const int center = (bh - (int)barlinepx) / 2;
+	static const XPoint facets[6][4] = {
+		{ { -4, -8 }, { 4, -8 }, { 3, -6 }, { -3, -6 } },
+		{ { 6, -7 }, { 10, -1 }, { 8, -1 }, { 5, -5 } },
+		{ { 10, 1 }, { 6, 7 }, { 5, 5 }, { 8, 1 } },
+		{ { 4, 8 }, { -4, 8 }, { -3, 6 }, { 3, 6 } },
+		{ { -6, 7 }, { -10, 1 }, { -8, 1 }, { -5, 5 } },
+		{ { -10, -1 }, { -6, -7 }, { -5, -5 }, { -8, -1 } }
+	};
+	int percent, iy, pin, slot, lit, vertex;
+	XPoint segment[4];
 	char value[16];
-	XPoint points[5];
 
 	if (!render)
 		return w;
 	percent = cpupercent(text);
-	filled = percent < 0 ? 0 : (percent + 9) / 10;
 	if (percent < 0)
 		snprintf(value, sizeof(value), " --%%");
 	else
 		snprintf(value, sizeof(value), "%3d%%", percent);
 	drw_setscheme(drw, scheme[SchemeStatusCPU]);
 	drw_rect(drw, x, 0, w, bh, 1, 1);
-	if (h < 12) {
+	if (center < 9) {
 		drw_text(drw, x, 0, w, bh, statuspadding, text, 0);
 		return w;
 	}
-	drw_text(drw, valuex, 2, valuew, h, 0, value, 0);
-	points[0] = (XPoint){ x + 2, 2 };
-	points[1] = (XPoint){ x + 2 + labelw, 2 };
-	points[2] = (XPoint){ x + 2 + labelw + 6, 8 };
-	points[3] = (XPoint){ x + 2 + labelw + 6, h + 1 };
-	points[4] = (XPoint){ x + 2, h + 1 };
+	if (percent >= 85)
+		drw_setscheme(drw, scheme[SchemeStatusBATMeter]);
+	drw_text(drw, valuex, 0, valuew, bh, 0, value, 0);
+	drw_setscheme(drw, scheme[SchemeStatusLabel]);
+	drw_text(drw, labelx, 0, labelw, bh, 0, "CPU", 0);
+	iy = center - iconw / 2;
 	XSetForeground(dpy, drw->gc, scheme[SchemeStatusCPUBadge][ColBg].pixel);
-	XFillPolygon(dpy, drw->drawable, drw->gc, points, 5, Convex, CoordModeOrigin);
-	drw_setscheme(drw, scheme[SchemeStatusCPUBadge]);
-	drw_text(drw, x + 2, 2, labelw, h, statuspadding, "CPU", 0);
-	sh = MIN(14, h - 6);
-	sy = 2 + (h - sh) / 2;
-	for (slot = 0; slot < 10; slot++) {
-		sx = meterx + slot * 7;
-		points[0] = (XPoint){ sx + 4, sy };
-		points[1] = (XPoint){ sx + 8, sy };
-		points[2] = (XPoint){ sx + 4, sy + sh };
-		points[3] = (XPoint){ sx, sy + sh };
-		XSetForeground(dpy, drw->gc,
-		               scheme[SchemeStatusCPUMeter][slot < filled ? ColFg : ColBg].pixel);
-		XFillPolygon(dpy, drw->drawable, drw->gc, points, 4, Convex, CoordModeOrigin);
+	XFillRectangle(dpy, drw->drawable, drw->gc, iconx + 5, iy + 5, 6, 6);
+	XSetForeground(dpy, drw->gc, scheme[SchemeStatusCPUMeter][ColFg].pixel);
+	XDrawRectangle(dpy, drw->drawable, drw->gc, iconx + 3, iy + 3, 9, 9);
+	for (pin = 5; pin <= 11; pin += 3) {
+		XDrawLine(dpy, drw->drawable, drw->gc, iconx + pin, iy,
+		          iconx + pin, iy + 2);
+		XDrawLine(dpy, drw->drawable, drw->gc, iconx + pin, iy + 13,
+		          iconx + pin, iy + 15);
+		XDrawLine(dpy, drw->drawable, drw->gc, iconx, iy + pin,
+		          iconx + 2, iy + pin);
+		XDrawLine(dpy, drw->drawable, drw->gc, iconx + 13, iy + pin,
+		          iconx + 15, iy + pin);
 	}
-	XSetForeground(dpy, drw->gc, scheme[SchemeStatusCPU][ColBorder].pixel);
-	XDrawRectangle(dpy, drw->drawable, drw->gc, x + 1, 2, w - 3, h - 1);
-	XSetForeground(dpy, drw->gc, scheme[SchemeStatusCPUBadge][ColBorder].pixel);
-	XFillRectangle(dpy, drw->drawable, drw->gc, x + 1, 2, 2, h);
+	/* Clockwise facets show current load without history or extra updates. */
+	if (percent < 0) {
+		XSetForeground(dpy, drw->gc, scheme[SchemeStatusLabel][ColFg].pixel);
+		XDrawLine(dpy, drw->drawable, drw->gc, meterx + 10, center, meterx + 17, center);
+	} else {
+		lit = (percent * 6 + 99) / 100;
+		for (slot = 0; slot < 6; slot++) {
+			for (vertex = 0; vertex < 4; vertex++)
+				segment[vertex] = (XPoint){ meterx + meterw / 2 + facets[slot][vertex].x,
+				                            center + facets[slot][vertex].y };
+			XSetForeground(dpy, drw->gc,
+			               scheme[SchemeStatusCPUMeter][slot < lit ? ColFg : ColBg].pixel);
+			XFillPolygon(dpy, drw->drawable, drw->gc, segment, 4, Convex, CoordModeOrigin);
+		}
+		XSetForeground(dpy, drw->gc, scheme[SchemeStatusLabel][ColFg].pixel);
+		XFillRectangle(dpy, drw->drawable, drw->gc, meterx + meterw / 2 - 1, center - 1, 2, 2);
+	}
+	return w;
+}
+
+/* State: 0 = battery/unknown, 1 = charging, 2 = mains connected and idle. */
+static int
+batterypercent(const char *text, int *state)
+{
+	const char *value;
+	char *end;
+	long percent;
+
+	*state = 0;
+	if (strncmp(text, "BAT [", 5) || !(value = strchr(text + 5, ']')))
+		return -1;
+	for (value++; *value == ' '; value++);
+	if (*value < '0' || *value > '9')
+		return -1;
+	errno = 0;
+	percent = strtol(value, &end, 10);
+	if (errno || percent > 100 || *end != '%')
+		return -1;
+	for (end++; *end == ' '; end++);
+	if (strcmp(end, "↑") && strcmp(end, "↓") && strcmp(end, "•") && strcmp(end, "?"))
+		return -1;
+	*state = !strcmp(end, "↑") ? 1 : !strcmp(end, "•") ? 2 : 0;
+	return (int)percent;
+}
+
+/* Filled rounded casing, drawn with existing Xlib primitives at bar scale. */
+static void
+batteryroundrect(int x, int y, int w, int h, int radius, unsigned long pixel)
+{
+	int r = MIN(radius, MIN(w, h) / 2);
+
+	if (w <= 0 || h <= 0)
+		return;
+	XSetForeground(dpy, drw->gc, pixel);
+	if (!r) {
+		XFillRectangle(dpy, drw->drawable, drw->gc, x, y, w, h);
+		return;
+	}
+	XFillRectangle(dpy, drw->drawable, drw->gc, x + r, y, w - 2 * r, h);
+	XFillRectangle(dpy, drw->drawable, drw->gc, x, y + r, w, h - 2 * r);
+	XFillArc(dpy, drw->drawable, drw->gc, x, y, 2 * r, 2 * r, 0, 360 * 64);
+	XFillArc(dpy, drw->drawable, drw->gc, x + w - 2 * r, y, 2 * r, 2 * r, 0, 360 * 64);
+	XFillArc(dpy, drw->drawable, drw->gc, x, y + h - 2 * r, 2 * r, 2 * r, 0, 360 * 64);
+	XFillArc(dpy, drw->drawable, drw->gc, x + w - 2 * r, y + h - 2 * r,
+	         2 * r, 2 * r, 0, 360 * 64);
+}
+
+static int
+batterypanel(int x, const char *text, int render)
+{
+	const int labelw = drw_fontset_getwidth(drw, "BAT");
+	const int valuew = drw_fontset_getwidth(drw, "100%");
+	const int gap = 8, bodyw = 34, tipw = 4;
+	const int iconx = x + statuspadding + labelw + gap;
+	const int badgex = iconx + bodyw + tipw + 5;
+	const int valuex = badgex + 14 + gap;
+	const int w = valuex - x + valuew + statuspadding;
+	const int h = MIN(16, bh - (int)barlinepx - 8);
+	const int y = (bh - (int)barlinepx - h) / 2;
+	const unsigned long bg = scheme[SchemeStatusBAT][ColBg].pixel;
+	const unsigned long fg = scheme[SchemeStatusBAT][ColFg].pixel;
+	const unsigned long red = scheme[SchemeStatusBATMeter][ColFg].pixel;
+	const unsigned long highlight = scheme[SchemeStatusBATCell3][ColFg].pixel;
+	const unsigned long edge = scheme[SchemeStatusBAT][ColBorder].pixel;
+	int percent, state, charging, low, filled, cx, cy, cell, cellx, cellw, lit;
+	char value[16];
+	XPoint bolt[7];
+
+	if (!render)
+		return w;
+	percent = batterypercent(text, &state);
+	charging = state == 1;
+	low = percent >= 0 && percent <= 10 && !state;
+	if (percent < 0)
+		snprintf(value, sizeof(value), " --%%");
+	else
+		snprintf(value, sizeof(value), "%3d%%", percent);
+	drw_setscheme(drw, scheme[SchemeStatusBAT]);
+	drw_rect(drw, x, 0, w, bh, 1, 1);
+	if (low)
+		drw_setscheme(drw, scheme[SchemeStatusBATMeter]);
+	drw_text(drw, valuex, 0, valuew, bh, 0, value, 0);
+	drw_setscheme(drw, scheme[charging ? SchemeStatusCPUBadge :
+	                         (state || low) ? SchemeStatusBATMeter : SchemeStatusLabel]);
+	drw_text(drw, x + statuspadding, 3, labelw, bh - 6, 0,
+	         charging ? "CHG" : state == 2 ? "AC" : "BAT", 0);
+	if (h >= 12) {
+		/* Five clean cells; the state badge never covers the actual charge. */
+		batteryroundrect(iconx, y, bodyw, h, 2, low || charging ? red : fg);
+		batteryroundrect(iconx + 1, y + 1, bodyw - 2, h - 2, 1, bg);
+		batteryroundrect(iconx + bodyw + 1, y + h / 2 - 3, tipw - 1, 6, 1,
+		                 state ? red : fg);
+		filled = percent <= 0 ? 0 : MAX(1, (bodyw - 6) * percent / 100);
+		for (cell = 0; cell < 5; cell++) {
+			cellx = cell * 6;
+			cellw = 4;
+			lit = MAX(0, MIN(cellw, filled - cellx));
+			batteryroundrect(iconx + 3 + cellx, y + 3, cellw, h - 6, 0,
+			                 scheme[SchemeStatusCPUMeter][ColBg].pixel);
+			batteryroundrect(iconx + 3 + cellx, y + 3, lit, h - 6, 0, red);
+			if (lit > 1) {
+				XSetForeground(dpy, drw->gc, highlight);
+				XDrawLine(dpy, drw->drawable, drw->gc,
+				          iconx + 3 + cellx, y + 3, iconx + 2 + cellx + lit, y + 3);
+			}
+		}
+		/* Fixed badge space avoids movement when AC/charging state changes. */
+		cx = badgex + 7;
+		cy = y + h / 2;
+		if (low) {
+			bolt[0] = (XPoint){ cx, cy - 6 };
+			bolt[1] = (XPoint){ cx - 6, cy + 5 };
+			bolt[2] = (XPoint){ cx + 6, cy + 5 };
+			XSetForeground(dpy, drw->gc, red);
+			XFillPolygon(dpy, drw->drawable, drw->gc, bolt, 3, Convex, CoordModeOrigin);
+			XSetForeground(dpy, drw->gc, bg);
+			XFillRectangle(dpy, drw->drawable, drw->gc, cx, cy - 2, 1, 4);
+			XFillRectangle(dpy, drw->drawable, drw->gc, cx, cy + 3, 1, 1);
+		} else if (charging) {
+			bolt[0] = (XPoint){ cx + 3, cy - 7 };
+			bolt[1] = (XPoint){ cx - 4, cy + 1 };
+			bolt[2] = (XPoint){ cx, cy + 1 };
+			bolt[3] = (XPoint){ cx - 3, cy + 7 };
+			bolt[4] = (XPoint){ cx + 4, cy - 1 };
+			bolt[5] = (XPoint){ cx, cy - 1 };
+			XSetForeground(dpy, drw->gc, scheme[SchemeStatusCPUBadge][ColFg].pixel);
+			XFillPolygon(dpy, drw->drawable, drw->gc, bolt, 6, Nonconvex, CoordModeOrigin);
+		} else if (state == 2) {
+			/* Mains connected, including a charge-limit hold at 79–80%. */
+			batteryroundrect(cx - 4, cy - 1, 9, 5, 2, fg);
+			XSetForeground(dpy, drw->gc, red);
+			XFillRectangle(dpy, drw->drawable, drw->gc, cx - 3, cy - 5, 2, 4);
+			XFillRectangle(dpy, drw->drawable, drw->gc, cx + 2, cy - 5, 2, 4);
+			XSetForeground(dpy, drw->gc, fg);
+			XFillRectangle(dpy, drw->drawable, drw->gc, cx, cy + 3, 2, 4);
+		} else if (percent >= 0) {
+			XSetForeground(dpy, drw->gc, scheme[SchemeStatusLabel][ColFg].pixel);
+			XDrawLine(dpy, drw->drawable, drw->gc, cx, cy - 4, cx, cy + 4);
+			XDrawLine(dpy, drw->drawable, drw->gc, cx - 3, cy + 1, cx, cy + 4);
+			XDrawLine(dpy, drw->drawable, drw->gc, cx + 3, cy + 1, cx, cy + 4);
+		} else {
+			XSetForeground(dpy, drw->gc, edge);
+			XDrawLine(dpy, drw->drawable, drw->gc, cx - 3, cy, cx + 3, cy);
+		}
+	}
+	return w;
+}
+
+/* Only decorate the producer's HH:MM:SS format; retain other text as-is. */
+static int
+clocktime(const char *text, int *hour, int *minute, int *second)
+{
+	int i, h, m, sec;
+
+	if (strlen(text) != 8 || text[2] != ':' || text[5] != ':')
+		return 0;
+	for (i = 0; i < 8; i++)
+		if (i != 2 && i != 5 && (text[i] < '0' || text[i] > '9'))
+			return 0;
+	h = (text[0] - '0') * 10 + text[1] - '0';
+	m = (text[3] - '0') * 10 + text[4] - '0';
+	sec = (text[6] - '0') * 10 + text[7] - '0';
+	if (h > 23 || m > 59 || sec > 60)
+		return 0;
+	*hour = h;
+	*minute = m;
+	*second = sec;
+	return 1;
+}
+
+/* Clockwise from twelve; round only the final screen coordinates. */
+static XPoint
+clockhand(int elapsed, int period, int radius)
+{
+	const double angle = (elapsed % period) * (6.28318530717958647692 / period);
+
+	return (XPoint){ (short)lround(sin(angle) * radius),
+	                 (short)lround(-cos(angle) * radius) };
+}
+
+/* Calendar and clock glyphs share the strip baseline and background. */
+static int
+clockpanel(int x, const char *text, int clock, int render)
+{
+	const unsigned int palette = clock ? SchemeStatusTime : SchemeStatusDate;
+	const int iconw = 16, gap = 7;
+	const int iconx = x + statuspadding + 2;
+	const int textx = iconx + iconw + gap;
+	const int textw = drw_fontset_getwidth(drw, text);
+	const int w = textx - x + textw + statuspadding + 2;
+	const int cy = (bh - (int)barlinepx) / 2;
+	const int iy = cy - 7;
+	int hour = 0, minute = 0, second = 0, valid, dateformat;
+	int i, offset, glyphw, elapsed;
+	XPoint hourhand, minutehand;
+	char glyph[2] = { 0, 0 };
+
+	valid = clock && clocktime(text, &hour, &minute, &second);
+	dateformat = !clock && strlen(text) == 10 && text[2] == '.' && text[5] == '.';
+	if (dateformat)
+		for (i = 0; i < 10; i++)
+			if (i != 2 && i != 5 && (text[i] < '0' || text[i] > '9'))
+				dateformat = 0;
+	if (!render)
+		return w;
+	drw_setscheme(drw, scheme[palette]);
+	drw_rect(drw, x, 0, w, bh, 1, 1);
+	if (valid || dateformat) {
+		/* A single size and baseline; distinguish date/time through color only. */
+		for (i = 0, offset = 0; text[i]; i++) {
+			glyph[0] = text[i];
+			glyphw = drw_fontset_getwidth(drw, glyph);
+			drw_setscheme(drw, scheme[(i == 2 || i == 5) ? SchemeStatusBATMeter :
+			                         clock ? SchemeStatusTime : SchemeStatusDate]);
+			drw_text(drw, textx + offset, 0, glyphw, bh, 0, glyph, 0);
+			offset += glyphw;
+		}
+	} else {
+		drw_text(drw, textx, 0, textw, bh, 0, text, 0);
+	}
+	if (cy >= 9) {
+		XSetForeground(dpy, drw->gc, scheme[SchemeStatusCPUMeter][ColFg].pixel);
+		if (clock) {
+			/* Quarter marks and real hour/minute hands, without extra timers. */
+			XDrawArc(dpy, drw->drawable, drw->gc, iconx, iy, 14, 14, 0, 360 * 64);
+			XSetForeground(dpy, drw->gc, scheme[SchemeStatusLabel][ColFg].pixel);
+			XDrawPoint(dpy, drw->drawable, drw->gc, iconx + 7, iy + 1);
+			XDrawPoint(dpy, drw->drawable, drw->gc, iconx + 7, iy + 13);
+			XDrawPoint(dpy, drw->drawable, drw->gc, iconx + 1, cy);
+			XDrawPoint(dpy, drw->drawable, drw->gc, iconx + 13, cy);
+			if (valid) {
+				elapsed = (hour % 12) * 3600 + minute * 60 + second;
+				hourhand = clockhand(elapsed, 43200, 4);
+				minutehand = clockhand(elapsed, 3600, 5);
+				XSetForeground(dpy, drw->gc, scheme[SchemeStatusTime][ColFg].pixel);
+				XDrawLine(dpy, drw->drawable, drw->gc, iconx + 7, cy,
+				          iconx + 7 + minutehand.x, cy + minutehand.y);
+				/* A longer, two-pixel hour hand stays distinct at bar scale. */
+				XSetForeground(dpy, drw->gc, scheme[SchemeStatusBATCell3][ColFg].pixel);
+				XSetLineAttributes(dpy, drw->gc, 2, LineSolid, CapButt, JoinMiter);
+				XDrawLine(dpy, drw->drawable, drw->gc, iconx + 7, cy,
+				          iconx + 7 + hourhand.x, cy + hourhand.y);
+				XSetLineAttributes(dpy, drw->gc, 1, LineSolid, CapButt, JoinMiter);
+			}
+		} else {
+			/* Quiet steel calendar casing with a red header and one clear tile. */
+			XSetForeground(dpy, drw->gc, scheme[SchemeStatusDate][ColFg].pixel);
+			XDrawRectangle(dpy, drw->drawable, drw->gc, iconx + 1, iy + 2, 12, 12);
+			XDrawLine(dpy, drw->drawable, drw->gc, iconx + 4, iy, iconx + 4, iy + 4);
+			XDrawLine(dpy, drw->drawable, drw->gc, iconx + 10, iy, iconx + 10, iy + 4);
+			XSetForeground(dpy, drw->gc, scheme[SchemeStatusBATMeter][ColFg].pixel);
+			XFillRectangle(dpy, drw->drawable, drw->gc, iconx + 2, iy + 5, 11, 2);
+			XFillRectangle(dpy, drw->drawable, drw->gc, iconx + 4, iy + 9, 3, 3);
+			XSetForeground(dpy, drw->gc, scheme[SchemeStatusDate][ColBorder].pixel);
+			XDrawLine(dpy, drw->drawable, drw->gc, iconx + 9, iy + 10, iconx + 11, iy + 10);
+		}
+	}
 	return w;
 }
 
@@ -887,14 +1192,9 @@ statusbar(int x, int render)
 	static const unsigned int palettes[] = {
 		SchemeStatusCPU, SchemeStatusBAT, SchemeStatusDate, SchemeStatusTime
 	};
-	static const unsigned int cellpalettes[] = {
-		SchemeStatusBATCell1, SchemeStatusBATCell2, SchemeStatusBATCell3,
-		SchemeStatusBATCell4, SchemeStatusBATCell5
-	};
-	char text[sizeof(stext)], *part, *next, *meterstart, *meterend, *cellptr, saved;
-	const char *celltext;
-	unsigned int index = 0, w, cell, cellw;
-	int width = 0, meterx, cellx;
+	char text[sizeof(stext)], *part, *next;
+	unsigned int index = 0, w;
+	int width = 0;
 
 	/* Plain status producers still work without the panel separator. */
 	if (!strchr(stext, '|')) {
@@ -914,64 +1214,36 @@ statusbar(int x, int render)
 			*next++ = '\0';
 		if (!index && !strncmp(part, "CPU ", 4)) {
 			w = cpupanel(x + width, part, render);
+		} else if (index == 1 && !strncmp(part, "BAT ", 4)) {
+			w = batterypanel(x + width, part, render);
+		} else if ((index == 2 && !strncmp(part, "DATE ", 5)) ||
+		           (index == 3 && !strncmp(part, "TIME ", 5))) {
+			w = clockpanel(x + width, part + 5, index == 3, render);
 		} else {
 			w = TEXTW(part) - lrpad + 2 * statuspadding;
 			if (render) {
 				drw_setscheme(drw, scheme[palettes[index % LENGTH(palettes)]]);
 				drw_text(drw, x + width, 0, w, bh, statuspadding, part, 0);
-				if (palettes[index % LENGTH(palettes)] == SchemeStatusBAT) {
-					drw_setscheme(drw, scheme[SchemeStatusBATMeter]);
-					/* Recolor only the bracketed cells; leave percentage/arrow silver. */
-					meterstart = strchr(part, '[');
-					meterend = meterstart ? strchr(meterstart, ']') : NULL;
-					if (meterend) {
-						*meterstart = '\0';
-						meterx = x + width + (int)statuspadding
-						       + (int)drw_fontset_getwidth(drw, part);
-						*meterstart = '[';
-						saved = meterend[1];
-						meterend[1] = '\0';
-						drw_text(drw, meterx, 0, drw_fontset_getwidth(drw, meterstart),
-						         bh, 0, meterstart, 0);
-						meterend[1] = saved;
-						/* Each filled cell has a progressively lighter red tint. */
-						cellx = meterx + (int)drw_fontset_getwidth(drw, "[");
-						cellptr = meterstart + 1;
-						for (cell = 0; cell < LENGTH(cellpalettes) &&
-						     (size_t)(meterend - cellptr) >= sizeof("▰") - 1; cell++) {
-							if (!memcmp(cellptr, "▰", sizeof("▰") - 1))
-								celltext = "▰";
-							else if (!memcmp(cellptr, "▱", sizeof("▱") - 1))
-								celltext = "▱";
-							else
-								break;
-							cellw = drw_fontset_getwidth(drw, celltext);
-							if (!strcmp(celltext, "▰")) {
-								drw_setscheme(drw, scheme[cellpalettes[cell]]);
-								drw_text(drw, cellx, 0, cellw, bh, 0, celltext, 0);
-							}
-							cellx += (int)cellw;
-							cellptr += sizeof("▰") - 1;
-						}
-						drw_setscheme(drw, scheme[SchemeStatusBATMeter]);
-					}
-					/* Inset rectangular casing above the existing red bottom rail. */
-					if (w > 2 && bh > (int)barlinepx + 3)
-						drw_rect(drw, x + width + 1, 2, w - 2,
-						         bh - barlinepx - 3, 0, 0);
-				}
 			}
 		}
 		width += w;
 		if (next) {
 			if (render) {
-				drw_setscheme(drw, scheme[SchemeNorm]);
+				drw_setscheme(drw, scheme[SchemeStatusCPU]);
 				drw_rect(drw, x + width, 0, statusgap, bh, 1, 1);
+				if (bh > (int)barlinepx + 14 && statusgap) {
+					XSetForeground(dpy, drw->gc, scheme[SchemeStatusLabel][ColBorder].pixel);
+					XDrawLine(dpy, drw->drawable, drw->gc,
+					          x + width + statusgap / 2, 7,
+					          x + width + statusgap / 2, bh - (int)barlinepx - 7);
+				}
 			}
 			width += statusgap;
 		}
 		index++;
 	}
+	if (render)
+		statusframe(x, width);
 	return width;
 }
 
@@ -981,7 +1253,7 @@ drawbar(Monitor *m)
 	int x, w, tw = 0, stw = 0;
 	int boxs = drw->fonts->h / 9;
 	int boxw = drw->fonts->h / 6 + 2;
-	unsigned int i, occ = 0, urg = 0;
+	unsigned int i, active, occ = 0, urg = 0;
 	Client *c;
 
 	if (!m->showbar)
@@ -1005,24 +1277,40 @@ drawbar(Monitor *m)
 	x = 0;
 	for (i = 0; i < LENGTH(tags); i++) {
 		w = TEXTW(tags[i]);
-		drw_setscheme(drw, scheme[m->tagset[m->seltags] & 1 << i ? SchemeSel : SchemeNorm]);
+		active = m->tagset[m->seltags] & 1 << i;
+		drw_setscheme(drw, scheme[active ? SchemeBarTagSel : SchemeNorm]);
 		drw_text(drw, x, 0, w, bh, lrpad / 2, tags[i], urg & 1 << i);
-		if (occ & 1 << i)
-			drw_rect(drw, x + boxs, boxs, boxw, boxw,
-				m == selmon && selmon->sel && selmon->sel->tags & 1 << i,
-				urg & 1 << i);
+		if (active) {
+			XSetForeground(dpy, drw->gc, scheme[SchemeBarTagSel][ColBorder].pixel);
+			XFillRectangle(dpy, drw->drawable, drw->gc, x + 4, 0, MAX(1, w - 8), 2);
+		}
+		if (occ & 1 << i) {
+			XSetForeground(dpy, drw->gc, scheme[active || (urg & 1 << i)
+			               ? SchemeBarTagSel : SchemeNorm][ColFg].pixel);
+			XFillRectangle(dpy, drw->drawable, drw->gc, x + (w - 6) / 2,
+			               MAX(0, bh - (int)barlinepx - 4), 6, 2);
+		}
 		x += w;
 	}
 	w = TEXTW(m->ltsymbol);
-	drw_setscheme(drw, scheme[SchemeNorm]);
+	drw_setscheme(drw, scheme[SchemeBarLayout]);
 	x = drw_text(drw, x, 0, w, bh, lrpad / 2, m->ltsymbol, 0);
+	XSetForeground(dpy, drw->gc, scheme[SchemeBarLayout][ColBorder].pixel);
+	XDrawLine(dpy, drw->drawable, drw->gc, x - 1, 4,
+	          x - 1, MAX(4, bh - (int)barlinepx - 4));
 
 	if ((w = m->ww - tw - stw - x) > bh) {
 		if (m->sel) {
-			drw_setscheme(drw, scheme[m == selmon ? SchemeSel : SchemeNorm]);
-			drw_text(drw, x, 0, w, bh, lrpad / 2, m->sel->name, 0);
+			drw_setscheme(drw, scheme[m == selmon ? SchemeBarTitle : SchemeNorm]);
+			drw_rect(drw, x, 0, w, bh, 1, 1);
+			drw_text(drw, x, 0, w - (m->sel->isfloating ? boxw + 8 : 0),
+			         bh, lrpad / 2, m->sel->name, 0);
 			if (m->sel->isfloating)
-				drw_rect(drw, x + boxs, boxs, boxw, boxw, m->sel->isfixed, 0);
+				drw_rect(drw, x + w - boxw - 4, boxs, boxw, boxw, m->sel->isfixed, 0);
+			XSetForeground(dpy, drw->gc, scheme[m == selmon
+			               ? SchemeBarTagSel : SchemeBarTitle][ColBorder].pixel);
+			XFillRectangle(dpy, drw->drawable, drw->gc, x + 3, 6, 2,
+			               MAX(1, bh - (int)barlinepx - 12));
 		} else {
 			drw_setscheme(drw, scheme[SchemeNorm]);
 			drw_rect(drw, x, 0, w, bh, 1, 1);
@@ -1030,7 +1318,7 @@ drawbar(Monitor *m)
 	}
 	/* REDLINE: a solid red lower edge gives the bar a rigid panel outline. */
 	if (barlinepx && barlinepx <= (unsigned int)bh && m->ww > stw) {
-		XSetForeground(dpy, drw->gc, scheme[SchemeSel][ColBorder].pixel);
+		XSetForeground(dpy, drw->gc, scheme[SchemeBarTagSel][ColBorder].pixel);
 		XFillRectangle(dpy, drw->drawable, drw->gc, 0, bh - barlinepx,
 		               m->ww - stw, barlinepx);
 	}

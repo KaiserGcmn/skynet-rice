@@ -80,6 +80,8 @@ struct response {
 	} body;
 };
 
-struct response roundtrip(struct request req);
+/* Consumes and clears the request before waiting for the daemon's response. */
+void clear_request(struct request *req);
+struct response roundtrip(struct request *req);
 
 #endif

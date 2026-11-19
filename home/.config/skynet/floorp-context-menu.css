@@ -1,0 +1,12 @@
+/* SKYNET: Floorp 12.20.x context-menu icon spacing (upstream issue #2816).
+ * Reserve a 16px icon and a readable gap; native iconic/checked rows keep
+ * their own layout. No colors, images, browser actions or web content change.
+ */
+@-moz-document url("chrome://browser/content/browser.xhtml") {
+  @media not -moz-pref("userChrome.icon.disabled") {
+    #contentAreaContextMenu > menuitem:not(.menuitem-iconic, .bookmark-item, [type="checkbox"], [type="radio"]),
+    #contentAreaContextMenu > menu:not(.menu-iconic, [type="checkbox"], [type="radio"]) {
+      padding-inline-start: max(32px, calc(var(--context-menu-background-padding, 6px) + 24px)) !important;
+    }
+  }
+}

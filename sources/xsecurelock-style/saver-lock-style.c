@@ -1,9 +1,9 @@
 /* XSecureLock decoration, animated logo and battery: no input/authentication. */
+#define _DEFAULT_SOURCE
 #define _POSIX_C_SOURCE 200809L
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/Xft/Xft.h>
-#include <X11/extensions/scrnsaver.h>
 #include <X11/extensions/dpms.h>
 #include <poll.h>
 #include <time.h>
@@ -17,6 +17,7 @@
 #include <string.h>
 #include <unistd.h>
 #include "skynet-logo.h"
+#include "lock-controls.h"
 
 static int xerror(Display *display, XErrorEvent *event) {
   (void)display;
@@ -76,10 +77,9 @@ static Pixmap paint(Display *display, Window window, XWindowAttributes *attr,
               (attr->width-width)/2, (attr->height-height)/2, width, height);
   }
   XSetWindowBackgroundPixmap(display, window, pixmap);
-  XClearWindow(display, window);
   XFreeGC(display, gc);
   if (previous) XFreePixmap(display, previous);
-  XFlush(display);
+  /* Present only after the current logo has replaced the bitmap's old emblem. */
   return pixmap;
 }
 
@@ -89,10 +89,9 @@ static long long now_ms(void) {
   return (long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
 
-static int screen_is_dark(Display *display, int has_dpms,
-                           XScreenSaverInfo *info) {
-  if (info && XScreenSaverQueryInfo(display, DefaultRootWindow(display), info) &&
-      info->state == ScreenSaverOn) return 1;
+static int screen_is_dark(Display *display, int has_dpms) {
+  /* XSS On also triggers xss-lock while its decoration is visible. It does not
+   * prove that the monitor is off; use DPMS and window visibility instead. */
   if (has_dpms) {
     CARD16 level;
     BOOL enabled;
@@ -147,31 +146,37 @@ int main(void) {
     plain();
   }
   XImage *image = load_image(display, &attr);
-  XSelectInput(display, id, StructureNotifyMask);
+  XSelectInput(display, id, StructureNotifyMask | VisibilityChangeMask);
   Pixmap pixmap = paint(display, id, &attr, image, None);
   XftFont *font = XftFontOpenName(display, XScreenNumberOfScreen(attr.screen),
                                  "JetBrains Mono:style=Regular:size=12");
+  Controls controls;
+  controls_start(display, &attr, &controls);
+  controls_decor(display, &attr, pixmap, &controls);
+  controls_paint(display, id, &attr, pixmap, &controls);
   char label[128];
   battery_label(label, sizeof(label));
   paint_battery(display, id, &attr, pixmap, font, label);
   Logo logo = {0};
   logo_init(display, id, &attr, image, pixmap, &logo);
+  logo_draw(display, id, &attr, &logo, 0.0);
+  XClearWindow(display, id);
+  XFlush(display);
   int event_base, error_base;
   int has_dpms = DPMSQueryExtension(display, &event_base, &error_base) &&
                  DPMSCapable(display);
-  XScreenSaverInfo *screen_info = NULL;
-  if (XScreenSaverQueryExtension(display, &event_base, &error_base))
-    screen_info = XScreenSaverAllocInfo();
   long long started = now_ms(), next_check = started + 1000;
   long long next_frame = started, next_power_check = started;
-  int dark = 0, mapped = attr.map_state == IsViewable;
+  int dark = 0, obscured = 0, mapped = attr.map_state == IsViewable;
   int alive = 1;
   while (alive) {
     /* Refresh live AC/battery state every second; repaint only on a change. */
+    controls_read(&controls);
+    if (controls.changed) controls_paint(display, id, &attr, pixmap, &controls);
     long long now = now_ms();
     if (now >= next_power_check) {
       int was_dark = dark;
-      dark = screen_is_dark(display, has_dpms, screen_info);
+      dark = screen_is_dark(display, has_dpms);
       if (was_dark && !dark) next_check = now;
       next_power_check = now + 250;
     }
@@ -191,6 +196,10 @@ int main(void) {
       if (event.type == DestroyNotify) { alive = 0; break; }
       if (event.type == MapNotify) { mapped = 1; next_check = next_frame = now_ms(); }
       if (event.type == UnmapNotify) mapped = 0;
+      if (event.type == VisibilityNotify) {
+        obscured = event.xvisibility.state == VisibilityFullyObscured;
+        if (!obscured) next_frame = now_ms();
+      }
       if (event.type == ConfigureNotify && event.xconfigure.width > 0 &&
           event.xconfigure.height > 0 &&
           (event.xconfigure.width != attr.width || event.xconfigure.height != attr.height)) {
@@ -198,14 +207,19 @@ int main(void) {
         attr.height = event.xconfigure.height;
         logo_destroy(display, &logo);
         pixmap = paint(display, id, &attr, image, pixmap);
+        controls_decor(display, &attr, pixmap, &controls);
+        controls_paint(display, id, &attr, pixmap, &controls);
         paint_battery(display, id, &attr, pixmap, font, label);
         logo_init(display, id, &attr, image, pixmap, &logo);
+        logo_draw(display, id, &attr, &logo, (double)(now_ms() - started));
+        XClearWindow(display, id);
+        XFlush(display);
         next_frame = now_ms();
       }
     }
     if (!alive) break;
     now = now_ms();
-    int animate = mapped && !dark && logo_visible(&logo, &attr);
+    int animate = mapped && !obscured && !dark && logo_visible(&logo, &attr);
     if (animate && now >= next_frame) {
       logo_draw(display, id, &attr, &logo, (double)(now - started));
       /* About 30 fps, no backlog or catch-up burst after a pause. */
@@ -216,16 +230,17 @@ int main(void) {
     long long wait_ms = deadline - now_ms();
     if (wait_ms < 0) wait_ms = 0;
     if (wait_ms > 10000) wait_ms = 10000;
-    struct pollfd connection = {ConnectionNumber(display), POLLIN, 0};
+    struct pollfd connections[2] = {
+      {ConnectionNumber(display), POLLIN, 0}, {controls.fd, POLLIN, 0}};
     if (!XPending(display)) {
-      int result = poll(&connection, 1, (int)wait_ms);
+      int result = poll(connections, 2, (int)wait_ms);
       if ((result < 0 && errno != EINTR) ||
-          (connection.revents & (POLLERR | POLLHUP | POLLNVAL))) break;
+          (connections[0].revents & (POLLERR | POLLHUP | POLLNVAL))) break;
     }
   }
+  controls_stop(display, &controls);
   if (font) XftFontClose(display, font);
   if (image) XDestroyImage(image);
-  if (screen_info) XFree(screen_info);
   logo_destroy(display, &logo);
   XFreePixmap(display, pixmap);
   XCloseDisplay(display);

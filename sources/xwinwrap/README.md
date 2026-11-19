@@ -60,6 +60,8 @@ Options:
              -ovr    - Set override_redirect flag on root window (For seamless
                        desktop background integration in fullscreenmode)
              -d      - Daemonize
+             -pause-hidden SOCKET
+                     - Pause mpv through its IPC socket while fully obscured
              -debug  - Enable debug messages
 ```
 Example
@@ -67,6 +69,28 @@ Example
 `xwinwrap -g 400x400 -ni -s -nf -b -un -argb -sh circle -- gifview -w WID mygif.gif -a`
 
 `nice xwinwrap -b -s -fs -st -sp -nf -ov -fdt -- mpv -wid WID --really-quiet --framedrop=vo --no-audio --panscan="1.0" /path/to/your/video`
+
+### Local wallpaper power saving
+
+The optional Linux-specific `-pause-hidden SOCKET` flag consumes X11 visibility
+events in the existing wrapper process. A fully obscured or unmapped wallpaper
+pauses mpv through its Unix IPC socket; partial or full visibility resumes it.
+Pass the same socket path to mpv's `--input-ipc-server=SOCKET`. The bundled
+`skynet-wallpaper` helper already supplies both arguments and must be installed
+with this version of xwinwrap.
+
+The wrapper requests `NotUseful` backing store so Xorg reports actual coverage,
+retains initial visibility events, and waits on X11 plus a `signalfd` for child
+exit. It retries IPC only while a pause/resume command has not been acknowledged;
+once applied, it blocks without periodic wakeups. A 100 ms reply bound prevents
+a stalled IPC client from blocking event handling indefinitely. mpv remains
+responsive to file changes, IPC quit and forwarded termination signals.
+Invocations without the new flag retain the original behavior.
+
+This was validated on an opaque X11/DWM desktop and an isolated Xephyr server.
+Transparent/composited desktops require separate validation. Display power-off
+alone is not a trigger. See [wallpaper integration and tests](../../docs/WALLPAPER.md).
+
 ### Changes
 
 * Added ability to make undecorated window

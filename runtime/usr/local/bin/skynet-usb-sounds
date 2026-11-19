@@ -1,0 +1,215 @@
+#!/usr/bin/python3
+"""Play user-provided sounds for external USB device arrivals and departures."""
+import argparse
+import fcntl
+import os
+from pathlib import Path
+import selectors
+import signal
+import stat
+import subprocess
+import sys
+import time
+
+
+SOUNDS = {
+    'add': 'Usbdeviceconnected.mp3',
+    'remove': 'Usbdevicedisconnected.mp3',
+}
+
+
+def external_device(path):
+    """Ignore root hubs and soldered/internal USB devices."""
+    if path.name.startswith('usb') or not (path / 'idVendor').is_file():
+        return False
+    try:
+        return (path / 'removable').read_text().strip() != 'fixed'
+    except FileNotFoundError:
+        return (path / 'idVendor').is_file()
+
+
+class Devices:
+    def __init__(self, sysfs=Path('/sys')):
+        self.sysfs = sysfs
+        self.present = set()
+        for path in (sysfs / 'bus/usb/devices').glob('*'):
+            if external_device(path):
+                self.present.add('/' + str(path.resolve().relative_to(sysfs)))
+
+    def event(self, properties):
+        if (properties.get('SUBSYSTEM') != 'usb' or
+                properties.get('DEVTYPE') != 'usb_device'):
+            return None
+        path = properties.get('DEVPATH', '')
+        if not path.startswith('/devices/') or '..' in Path(path).parts:
+            return None
+        action = properties.get('ACTION')
+        if action == 'add' and path not in self.present:
+            if external_device(self.sysfs / path.lstrip('/')):
+                self.present.add(path)
+                return 'add'
+        elif action == 'remove' and path in self.present:
+            self.present.remove(path)
+            return 'remove'
+        return None
+
+
+class Events:
+    """Parse udevadm property blocks, including fragmented pipe reads."""
+    def __init__(self):
+        self.buffer = b''
+        self.properties = {}
+
+    def feed(self, data):
+        self.buffer += data
+        while b'\n' in self.buffer:
+            line, self.buffer = self.buffer.split(b'\n', 1)
+            line = line.decode('utf-8', errors='replace').strip()
+            if not line:
+                if self.properties:
+                    yield self.properties
+                    self.properties = {}
+            elif '=' in line:
+                key, value = line.split('=', 1)
+                self.properties[key] = value
+
+
+def player_command(sound):
+    # No personal mpv scripts, window, playback history or global volume changes.
+    # Skip only leading near-silence; keep internal pauses and a 10 ms onset margin.
+    trim = ('lavfi=[silenceremove=start_periods=1:start_duration=0.002:'
+            'start_threshold=-60dB:start_silence=0.01:detection=peak:window=0.005]')
+    return ['/usr/bin/mpv', '--no-config', '--load-scripts=no', '--no-video',
+            '--audio-display=no', '--no-terminal', '--really-quiet',
+            '--stop-screensaver=no', '--ao=pulse',
+            '--audio-client-name=SKYNET USB', '--volume=100',
+            '--audio-buffer=0.05', '--pulse-buffer=50',
+            '--af=' + trim + ',volume=-6dB', '--', str(sound)]
+
+
+def stop(process):
+    if process is None:
+        return
+    if process.poll() is None:
+        process.terminate()
+    try:
+        process.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+
+
+def acquire_lock(runtime):
+    info = runtime.stat()
+    if info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) & 0o077:
+        raise RuntimeError('A private user runtime directory is required')
+    fd = os.open(runtime / 'skynet-usb-sounds.lock',
+                 os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise RuntimeError('Invalid runtime lock')
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BaseException:
+        os.close(fd)
+        raise
+    # Keep the runtime lock inode: unlinking it can allow two concurrent owners.
+    return fd
+
+
+def monitor(sounds, session_pid):
+    monitor_process = player = None
+    player_fd = session_fd = None
+    with selectors.DefaultSelector() as selector:
+        try:
+            if session_pid:
+                session_fd = os.pidfd_open(session_pid)
+                selector.register(session_fd, selectors.EVENT_READ, 'session')
+            monitor_process = subprocess.Popen(
+                ['/usr/bin/udevadm', 'monitor', '--udev',
+                 '--subsystem-match=usb/usb_device', '--property'],
+                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                env=dict(os.environ, LC_ALL='C'), bufsize=0)
+            selector.register(monitor_process.stdout, selectors.EVENT_READ, 'usb')
+            devices, events = Devices(), Events()
+            last_action, last_time = None, 0
+            while True:
+                for key, _ in selector.select():
+                    if key.data == 'session':
+                        return
+                    if key.data != 'usb':
+                        if key.data is player:
+                            selector.unregister(player_fd)
+                            os.close(player_fd)
+                            player_fd = None
+                            player.wait()
+                            player = None
+                        continue
+                    data = os.read(monitor_process.stdout.fileno(), 65536)
+                    if not data:
+                        raise RuntimeError('USB event monitor stopped')
+                    for properties in events.feed(data):
+                        action = devices.event(properties)
+                        if action is None:
+                            continue
+                        now = time.monotonic()
+                        # A hub can announce several devices in one burst.
+                        if action == last_action and now - last_time < 0.4:
+                            continue
+                        last_action, last_time = action, now
+                        sound = sounds / SOUNDS[action]
+                        if not sound.is_file():
+                            continue
+                        if player_fd is not None:
+                            selector.unregister(player_fd)
+                            os.close(player_fd)
+                            player_fd = None
+                        stop(player)
+                        player = subprocess.Popen(
+                            player_command(sound), stdin=subprocess.DEVNULL,
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        player_fd = os.pidfd_open(player.pid)
+                        selector.register(player_fd, selectors.EVENT_READ, player)
+        finally:
+            stop(player)
+            stop(monitor_process)
+            if monitor_process and monitor_process.stdout:
+                monitor_process.stdout.close()
+            for fd in (player_fd, session_fd):
+                if fd is not None:
+                    os.close(fd)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--sounds-dir', type=Path,
+                        default=Path.home() / 'customsounds')
+    parser.add_argument('--session-pid', type=int,
+                        help='Exit when this desktop-session process exits')
+    parser.add_argument('--preview', choices=SOUNDS,
+                        help='Play one sound without monitoring devices')
+    args = parser.parse_args()
+    if args.preview:
+        return subprocess.run(player_command(args.sounds_dir / SOUNDS[args.preview]),
+                              stdin=subprocess.DEVNULL, check=False).returncode
+    runtime = Path(os.environ.get('XDG_RUNTIME_DIR', f'/run/user/{os.getuid()}'))
+    try:
+        lock = acquire_lock(runtime)
+    except BlockingIOError:
+        return 0
+    def terminate(signum, frame):
+        raise SystemExit(0)
+    for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, terminate)
+    try:
+        monitor(args.sounds_dir, args.session_pid)
+    finally:
+        os.close(lock)
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except (OSError, RuntimeError) as error:
+        print(f'skynet-usb-sounds: {error}', file=sys.stderr)
+        sys.exit(1)

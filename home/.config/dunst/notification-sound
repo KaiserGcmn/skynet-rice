@@ -1,0 +1,27 @@
+#!/bin/sh
+# Dunst hook: never interpret or log notification titles, bodies or URLs.
+set -eu
+case "${DUNST_APP_NAME:-${1:-}}" in
+    dwm-volume|dwm-brightness) exit 0 ;;
+esac
+case "${DUNST_STACK_TAG:-}" in
+    dwm-volume|dwm-microphone|dwm-brightness) exit 0 ;;
+esac
+
+sound="${SKYNET_NOTIFICATION_SOUND:-$HOME/customsounds/Notificationrecieved.mp3}"
+[ -r "$sound" ] || exit 0
+for command in mpv flock dunstctl; do
+    command -v "$command" >/dev/null 2>&1 || exit 0
+done
+[ "$(dunstctl is-paused 2>/dev/null)" != true ] || exit 0
+
+umask 077
+exec 9>"${XDG_RUNTIME_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}}/skynet-notification-sound.lock"
+# Overlapping notifications share one sound, without a playback queue.
+flock -n 9 || exit 0
+exec mpv --no-config --load-scripts=no --no-video --audio-display=no \
+    --no-terminal --really-quiet --stop-screensaver=no --ao=pulse \
+    --audio-client-name='SKYNET Notifications' --volume=100 \
+    --audio-buffer=0.05 --pulse-buffer=50 \
+    --af='lavfi=[silenceremove=start_periods=1:start_duration=0.002:start_threshold=-60dB:start_silence=0.01:detection=peak:window=0.005]' \
+    -- "$sound" </dev/null >/dev/null 2>&1

@@ -1,4 +1,53 @@
 /* See LICENSE file for copyright and license details. */
+#if defined(__linux__)
+#include <dirent.h>
+#include <limits.h>
+
+#ifndef SKYNET_POWER_SUPPLY_ROOT
+#define SKYNET_POWER_SUPPLY_ROOT "/sys/class/power_supply"
+#endif
+
+/* Confirm an idle battery is on mains; peripheral batteries are not adapters. */
+static int
+battery_mains_online(const char *root)
+{
+    DIR *dir;
+    struct dirent *entry;
+    FILE *fp;
+    char path[PATH_MAX], type[32], extra;
+    int online, result = -1, uncertain = 0, n;
+
+    if (!(dir = opendir(root)))
+        return -1;
+    while ((entry = readdir(dir))) {
+        if (entry->d_name[0] == '.')
+            continue;
+        n = snprintf(path, sizeof(path), "%s/%s/type", root, entry->d_name);
+        if (n < 0 || (size_t)n >= sizeof(path) || !(fp = fopen(path, "r")))
+            continue;
+        n = fscanf(fp, "%31s", type);
+        fclose(fp);
+        if (n != 1 || strcmp(type, "Mains"))
+            continue;
+        n = snprintf(path, sizeof(path), "%s/%s/online", root, entry->d_name);
+        if (n < 0 || (size_t)n >= sizeof(path) || !(fp = fopen(path, "r"))) {
+            uncertain = 1;
+            continue;
+        }
+        n = fscanf(fp, "%d %c", &online, &extra);
+        fclose(fp);
+        if (n != 1 || (online != 0 && online != 1)) {
+            uncertain = 1;
+            continue;
+        }
+        result = online;
+        if (online)
+            break;
+    }
+    closedir(dir);
+    return result == 1 ? 1 : uncertain ? -1 : result;
+}
+#endif
 
 /* interval between updates (in ms) */
 const unsigned int interval = 1000;
@@ -86,6 +135,12 @@ battery_visual(const char *bat)
     state = battery_state(bat);
     direction = !state ? "?" : !strcmp(state, "+") ? "↑" :
                 !strcmp(state, "-") ? "↓" : !strcmp(state, "o") ? "•" : "?";
+#if defined(__linux__)
+    if (state && !strcmp(state, "o")) {
+        int online = battery_mains_online(SKYNET_POWER_SUPPLY_ROOT);
+        direction = online == 1 ? "•" : online == 0 ? "↓" : "?";
+    }
+#endif
     return bprintf("[%s]  %3ld%% %s", levels[(percent + 19) / 20], percent, direction);
 }
 

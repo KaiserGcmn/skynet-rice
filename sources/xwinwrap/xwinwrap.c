@@ -63,6 +63,11 @@
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <errno.h>
+#include <poll.h>
+#include <sys/signalfd.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 
 #define WIDTH 512
 #define HEIGHT 384
@@ -169,7 +174,100 @@ static int get_argb_visual(Visual **visual, int *depth) {
 
 static void sigHandler(int sig) { kill(pid, sig); }
 
+/* Optional mpv control: retain the last frame when the wallpaper is completely
+ * covered. This uses the existing wrapper process and X events, not a polling
+ * daemon. mpv stays responsive to IPC, file changes and normal termination. */
+static bool set_mpv_pause(const char *endpoint, bool paused) {
+  struct sockaddr_un address = {.sun_family = AF_UNIX};
+  if (strlen(endpoint) >= sizeof(address.sun_path))
+    return false;
+  strcpy(address.sun_path, endpoint);
+  int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
+  if (fd < 0)
+    return false;
+  const char *command = paused
+      ? "{\"command\":[\"set_property\",\"pause\",true]}\n"
+      : "{\"command\":[\"set_property\",\"pause\",false]}\n";
+  bool ok = connect(fd, (struct sockaddr *)&address, sizeof(address)) == 0 &&
+      send(fd, command, strlen(command), MSG_NOSIGNAL) == (ssize_t)strlen(command);
+  if (ok) {
+    /* Keep the connection open until mpv consumes the command. Closing it
+     * immediately can make mpv discard a command along with the disconnected
+     * client. A stalled player must never stall X event handling. */
+    struct pollfd reply = {.fd = fd, .events = POLLIN};
+    char response[256];
+    ssize_t length = poll(&reply, 1, 100) > 0
+        ? recv(fd, response, sizeof(response) - 1, 0) : -1;
+    ok = length > 0;
+    if (ok) {
+      response[length] = '\0';
+      ok = strstr(response, "\"success\"") != NULL;
+    }
+  }
+  close(fd);
+  return ok;
+}
+
+static void wait_with_visibility(const char *endpoint, int *status) {
+  sigset_t child_mask, previous_mask;
+  sigemptyset(&child_mask);
+  sigaddset(&child_mask, SIGCHLD);
+  if (sigprocmask(SIG_BLOCK, &child_mask, &previous_mask) < 0)
+    goto plain_wait;
+  int child_fd = signalfd(-1, &child_mask, SFD_CLOEXEC | SFD_NONBLOCK);
+  if (child_fd < 0) {
+    sigprocmask(SIG_SETMASK, &previous_mask, NULL);
+    goto plain_wait;
+  }
+  bool hidden = false;
+  int applied = -1;
+  struct pollfd fds[] = {
+      {.fd = ConnectionNumber(display), .events = POLLIN},
+      {.fd = child_fd, .events = POLLIN},
+  };
+  for (;;) {
+    pid_t result = waitpid(pid, status, WNOHANG);
+    if (result == pid || (result < 0 && errno != EINTR))
+      break;
+    while (XPending(display)) {
+      XEvent event;
+      XNextEvent(display, &event);
+      if (debug)
+        fprintf(stderr, "visibility event type=%d state=%d\n", event.type,
+                event.type == VisibilityNotify ? event.xvisibility.state : -1);
+      if (event.type == VisibilityNotify)
+        hidden = event.xvisibility.state == VisibilityFullyObscured;
+      else if (event.type == UnmapNotify)
+        hidden = true;
+    }
+    if (applied != (int)hidden) {
+      bool success = set_mpv_pause(endpoint, hidden);
+      if (debug)
+        fprintf(stderr, "mpv pause=%d accepted=%d\n", hidden, success);
+      if (success)
+        applied = hidden;
+    }
+    /* Retry while mpv creates its socket, then sleep until an X/child event. */
+    int ready = poll(fds, 2, applied == (int)hidden ? -1 : 250);
+    if (ready < 0 && errno == EINTR)
+      continue;
+    if (ready < 0 || (fds[0].revents & (POLLERR | POLLHUP | POLLNVAL))) {
+      set_mpv_pause(endpoint, false);
+      break;
+    }
+    if (fds[1].revents & POLLIN) {
+      struct signalfd_siginfo info;
+      while (read(child_fd, &info, sizeof(info)) == sizeof(info)) {}
+    }
+  }
+  close(child_fd);
+  sigprocmask(SIG_SETMASK, &previous_mask, NULL);
+plain_wait:
+  while (waitpid(pid, status, 0) < 0 && errno == EINTR) {}
+}
+
 static void usage(void) {
+  fprintf(stderr, "Optional: -pause-hidden SOCKET pauses mpv while fully covered.\n");
   fprintf(stderr, "%s v%s \n", NAME, VERSION);
   fprintf(stderr, "\nUsage: %s [-g {w}x{h}+{x}+{y}] [-ni] [-argb] [-fdt]\n \
                [-fs] [-un] [-s] [-st] [-sp] [-a] [-b] [-nf] [-o OPACITY]\n \
@@ -330,6 +428,7 @@ int main(int argc, char **argv) {
   bool skip_taskbar = false;
   bool skip_pager = false;
   bool daemonize = false;
+  const char *pause_socket = NULL;
 
   win_shape shape = SHAPE_RECT;
   Pixmap mask;
@@ -385,6 +484,12 @@ int main(int argc, char **argv) {
       debug = true;
     } else if (strcmp(argv[i], "-d") == 0) {
       daemonize = true;
+    } else if (strcmp(argv[i], "-pause-hidden") == 0) {
+      if (++i >= argc || strlen(argv[i]) >= sizeof(((struct sockaddr_un *)0)->sun_path)) {
+        fprintf(stderr, NAME ": -pause-hidden needs a valid local socket path\n");
+        return 1;
+      }
+      pause_socket = argv[i];
     } else if (strcmp(argv[i], "--") == 0) {
       break;
     } else {
@@ -412,7 +517,10 @@ int main(int argc, char **argv) {
       exit(1);
     }
 
-    chdir("/");
+    if (chdir("/") < 0) {
+      perror("chdir");
+      return 1;
+    }
     if (!debug) {
       close(STDIN_FILENO);
       close(STDOUT_FILENO);
@@ -740,9 +848,17 @@ int main(int argc, char **argv) {
                       ShapeSet);
   }
 
+  if (pause_socket) {
+    /* Always backing-store can keep the window redirected and apparently
+     * unobscured on Xorg. mpv owns the retained frame; request real visibility. */
+    XSetWindowAttributes attributes = {.backing_store = NotUseful};
+    XChangeWindowAttributes(display, window.window, CWBackingStore, &attributes);
+    XSelectInput(display, window.window, VisibilityChangeMask | StructureNotifyMask);
+  }
+
   XMapWindow(display, window.window);
 
-  XSync(display, window.window);
+  XSync(display, pause_socket ? False : True);
 
   sprintf(widArg, "0x%x", (int)window.window);
 
@@ -764,7 +880,9 @@ int main(int argc, char **argv) {
   signal(SIGTERM, sigHandler);
   signal(SIGINT, sigHandler);
 
-  for (;;) {
+  if (pause_socket) {
+    wait_with_visibility(pause_socket, &status);
+  } else for (;;) {
     if (waitpid(pid, &status, 0) != -1) {
       if (WIFEXITED(status))
         fprintf(stderr, "%s died, exit status %d\n", childArgv[0],

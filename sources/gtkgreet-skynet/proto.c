@@ -9,48 +9,97 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
-
-#include <glib/gi18n.h>
+#include <stdint.h>
+#include <string.h>
 
 #include "proto.h"
-#include "window.h"
 
-struct header {
-    uint32_t magic;
-    uint32_t version;
-    uint32_t payload_len;
-};
+/* Requests are small, fixed-size protocol structures. Encode them directly
+ * into one bounded buffer: JSON-C must never own a second password copy. */
+#define REQUEST_CAPACITY (6 * sizeof(((struct request *)0)->body) + 128)
+#define MAX_RESPONSE_BYTES (1024 * 1024)
 
-static int write_req(int fd, struct json_object* req) {
-    const char* reqstr = json_object_get_string(req);
-    size_t len = strlen(reqstr);
-    if (len > 0xFFFFFFFF) {
-	    goto error;
+static void clear_bytes(void *memory, size_t length) {
+    volatile unsigned char *p = memory;
+    while (length--) *p++ = 0;
+}
+
+void clear_request(struct request *req) {
+    clear_bytes(req, sizeof(*req));
+}
+
+static int encode_request(const struct request *req, char *out, size_t capacity) {
+    const char *prefix, *suffix = "}", *value = NULL;
+    size_t value_capacity = 0;
+    switch (req->request_type) {
+        case request_type_create_session:
+            prefix = "{\"type\":\"create_session\",\"username\":";
+            value = req->body.request_create_session.username;
+            value_capacity = sizeof(req->body.request_create_session.username);
+            break;
+        case request_type_start_session:
+            prefix = "{\"type\":\"start_session\",\"cmd\":[";
+            suffix = "]}";
+            value = req->body.request_start_session.cmd;
+            value_capacity = sizeof(req->body.request_start_session.cmd);
+            break;
+        case request_type_post_auth_message_response:
+            prefix = "{\"type\":\"post_auth_message_response\",\"response\":";
+            value = req->body.request_post_auth_message_response.response;
+            value_capacity = sizeof(req->body.request_post_auth_message_response.response);
+            break;
+        case request_type_cancel_session:
+            prefix = "{\"type\":\"cancel_session\"";
+            break;
+        default:
+            return -1;
     }
-    uint32_t header = len;
-    char* headerp = (char*)&header;
-    uint32_t off = 0;
-
-    while (off < 4) {
-        ssize_t n = write(fd, &headerp[off], 4-off);
-        if (n < 1) {
-            goto error;
+    size_t used = strlen(prefix);
+    if (used >= capacity) return -1;
+    memcpy(out, prefix, used);
+    if (value) {
+        size_t length = strnlen(value, value_capacity);
+        if (length == value_capacity || used + 2 >= capacity) return -1;
+        out[used++] = '"';
+        for (size_t i = 0; i < length; ++i) {
+            unsigned char c = (unsigned char)value[i];
+            if (used + 6 + 2 + strlen(suffix) >= capacity) return -1;
+            if (c == '"' || c == '\\') {
+                out[used++] = '\\';
+                out[used++] = (char)c;
+            } else if (c < 0x20) {
+                static const char hex[] = "0123456789abcdef";
+                memcpy(out + used, "\\u00", 4);
+                used += 4;
+                out[used++] = hex[c >> 4];
+                out[used++] = hex[c & 15];
+            } else {
+                out[used++] = (char)c;
+            }
         }
-        off += n;
+        out[used++] = '"';
     }
+    size_t tail = strlen(suffix);
+    if (used + tail >= capacity) return -1;
+    memcpy(out + used, suffix, tail + 1);
+    return (int)(used + tail);
+}
 
-    off = 0;
-    while (off < len) {
-        ssize_t n = write(fd, &reqstr[off], len-off);
-        if (n < 1) {
-            goto error;
-        }
-        off += n;
+static int send_all(int fd, const void *buffer, size_t length) {
+    const char *bytes = buffer;
+    size_t off = 0;
+    while (off < length) {
+        ssize_t n = send(fd, bytes + off, length - off, MSG_NOSIGNAL);
+        if (n < 0 && errno == EINTR) continue;
+        if (n <= 0) return -1;
+        off += (size_t)n;
     }
- 
     return 0;
-error:
-    return -1;
+}
+
+static int write_req(int fd, const char *payload, uint32_t length) {
+    if (send_all(fd, &length, sizeof(length)) < 0) return -1;
+    return send_all(fd, payload, length);
 }
 
 static struct json_object* read_resp(int fd) {
@@ -62,6 +111,7 @@ static struct json_object* read_resp(int fd) {
     while (off < 4) {
         char* headerp = (char*)&len;
         ssize_t n = read(fd, &headerp[off], 4-off);
+        if (n < 0 && errno == EINTR) continue;
         if (n < 1) {
             goto end;
         }
@@ -69,9 +119,12 @@ static struct json_object* read_resp(int fd) {
     }
 
     off = 0;
-    respstr = (char*)calloc(1,len+1);
+    if (len == 0 || len > MAX_RESPONSE_BYTES) goto end;
+    respstr = (char*)calloc(1, (size_t)len + 1);
+    if (respstr == NULL) goto end;
     while (off <len) {
         int n = read(fd, &respstr[off],len-off);
+        if (n < 0 && errno == EINTR) continue;
         if (n < 1) {
             goto end;
         }
@@ -88,7 +141,11 @@ end:
 }
 
 static int connectto(const char* path) {
-    int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (strlen(path) >= sizeof(((struct sockaddr_un *)0)->sun_path)) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
     if (fd < 0) {
         fprintf(stderr, "unable to open socket\n");
         return -1;
@@ -107,14 +164,14 @@ static int connectto(const char* path) {
     return fd;
 }
 
-static struct json_object* roundtrip_json(struct json_object* req) {
+static struct json_object* roundtrip_json(char *payload, uint32_t length, size_t capacity) {
     struct json_object* resp = NULL;
-    int fd;
+    int fd = -1;
     char* greetd_sock = getenv("GREETD_SOCK");
 
     if (greetd_sock == NULL) {
         fprintf(stderr, "GREETD_SOCK not set\n");
-        return NULL;
+        goto end;
     }
 
     if ((fd = connectto(greetd_sock)) < 0) {
@@ -122,7 +179,10 @@ static struct json_object* roundtrip_json(struct json_object* req) {
         goto end;
     }
 
-    if (write_req(fd, req) != 0) {
+    int written = write_req(fd, payload, length);
+    /* Erase even while the daemon may be waiting for a fingerprint/reply. */
+    clear_bytes(payload, capacity);
+    if (written != 0) {
         fprintf(stderr, "unable to write request to socket\n");
         goto end;
     }
@@ -133,7 +193,8 @@ static struct json_object* roundtrip_json(struct json_object* req) {
     }
 
 end:
-    if (fd > 0) {
+    clear_bytes(payload, capacity);
+    if (fd >= 0) {
         close(fd);
     }
     return resp;
@@ -142,49 +203,34 @@ end:
 const char* json_get_string_from_object(struct json_object* obj, const char* key) {
 
     struct json_object* val = json_object_object_get(obj, key);
-    if (val == NULL) {
+    if (val == NULL || !json_object_is_type(val, json_type_string)) {
         return NULL;
     }
     return json_object_get_string(val);
 }
 
-struct response roundtrip(struct request req) {
-    struct json_object *json_req = json_object_new_object();
-    switch (req.request_type) {
-    case request_type_create_session: {
-        json_object_object_add(json_req, "type", json_object_new_string("create_session"));
-        json_object_object_add(json_req, "username", json_object_new_string(req.body.request_create_session.username));
-        break;
-    }
-    case request_type_start_session: {
-        json_object_object_add(json_req, "type", json_object_new_string("start_session"));
-        struct json_object* cmd = json_object_new_array();
-        json_object_array_add(cmd, json_object_new_string(req.body.request_start_session.cmd));
-        json_object_object_add(json_req, "cmd", cmd);
-        break;
-    }
-    case request_type_post_auth_message_response: {
-        json_object_object_add(json_req, "type", json_object_new_string("post_auth_message_response"));
-        json_object_object_add(json_req, "response", json_object_new_string(req.body.request_post_auth_message_response.response));
-        break;
-    }
-    case request_type_cancel_session: {
-        json_object_object_add(json_req, "type", json_object_new_string("cancel_session"));
-        break;
-    }
-    }
-
+struct response roundtrip(struct request *req) {
+    char payload[REQUEST_CAPACITY] = {0};
+    int length = encode_request(req, payload, sizeof(payload));
+    clear_request(req);
     struct response resp = {
         .response_type = response_type_roundtrip_error,
     };
     resp.body.response_error.error_type = error_type_error;
 
-    struct json_object* json_resp = roundtrip_json(json_req);
+    struct json_object* json_resp = NULL;
+    if (length >= 0)
+        json_resp = roundtrip_json(payload, (uint32_t)length, sizeof(payload));
+    clear_bytes(payload, sizeof(payload));
     if (json_resp == NULL) {
         snprintf(resp.body.response_error.description, 128, "proto: roundtrip failed");
         goto done;
     }
 
+    if (!json_object_is_type(json_resp, json_type_object)) {
+        snprintf(resp.body.response_error.description, 128, "proto: expected object");
+        goto done;
+    }
     const char* typestr = json_get_string_from_object(json_resp, "type");
     if (typestr == NULL) {
         snprintf(resp.body.response_error.description, 128, "proto: no type found");
@@ -239,6 +285,10 @@ struct response roundtrip(struct request req) {
         resp.response_type = response_type_error;
 
         const char* errortypestr = json_get_string_from_object(json_resp, "error_type");
+        if (errortypestr == NULL) {
+            snprintf(resp.body.response_error.description, 128, "proto: no error type");
+            goto done;
+        }
         if (strcmp(errortypestr, "auth_error") == 0) {
             resp.body.response_error.error_type = error_type_auth;
         } else {

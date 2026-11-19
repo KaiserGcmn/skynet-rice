@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=X-GNOME-Metatheme
+Name=SKYNET Black Red
+Comment=Pure black, compact GTK theme with red accents; derived from Graphite
+
+[X-GNOME-Metatheme]
+GtkTheme=SKYNET-Black-Red
+IconTheme=breeze-dark
+CursorTheme=Skynet

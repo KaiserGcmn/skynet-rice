@@ -1,0 +1,40 @@
+#!/usr/bin/python3
+"""Show calendar days since the user's confirmed first regular use."""
+from datetime import date
+import os
+from pathlib import Path
+import re
+
+
+def age_text(value, today):
+    if value is None:
+        return 'unknown / first-use date not recorded'
+    value = value.strip()
+    if not re.fullmatch(r'[0-9]{4}-[0-9]{2}-[0-9]{2}', value):
+        return 'unknown / invalid first-use date'
+    try:
+        start = date.fromisoformat(value)
+    except ValueError:
+        return 'unknown / invalid first-use date'
+    if start > today:
+        return 'unknown / first-use date is in the future'
+    days = (today - start).days
+    unit = 'day' if days == 1 else 'days'
+    return f'{days} {unit} / first use {start.isoformat()}'
+
+
+def main():
+    configured = os.environ.get('XDG_STATE_HOME', '')
+    state = Path(configured) if configured.startswith('/') else Path.home() / '.local/state'
+    path = state / 'skynet-rice/first-use-date'
+    try:
+        value = path.read_text(encoding='ascii')
+    except FileNotFoundError:
+        value = None
+    except (OSError, UnicodeError):
+        value = ''
+    print(age_text(value, date.today()))
+
+
+if __name__ == '__main__':
+    main()

@@ -36,7 +36,12 @@ class RestoreTest(unittest.TestCase):
         self.assertEqual(backup.stat().st_mode & 0o777, 0o700)
         fastfetch = (self.home / '.config/fastfetch/config.jsonc').read_text()
         self.assertNotIn('@@HOME@@', fastfetch)
-        self.assertIn(str(self.home), fastfetch)
+        logo = json.loads(fastfetch)['logo']
+        self.assertEqual(logo['type'], 'file')
+        self.assertEqual(logo['source'], '~/.config/fastfetch/skynet-globe.txt')
+        self.assertTrue((self.home / '.config/fastfetch/skynet-globe.txt').is_file())
+        self.assertFalse((self.home / '.local/bin/fastfetch').exists())
+        self.assertFalse((self.home / '.local/bin/skynet-fetch-logo').exists())
         self.assertFalse((self.home / '.config/systemd').exists())
         self.assertFalse((self.home / '.xprofile').exists())
         self.assertIsNone(self.call_restore(True))

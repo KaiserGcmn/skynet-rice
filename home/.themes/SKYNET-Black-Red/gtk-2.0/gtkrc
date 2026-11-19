@@ -1,0 +1,26 @@
+# SKYNET legacy GTK 2 compatibility, using the distribution's Adwaita engine.
+include "/usr/share/themes/Adwaita-dark/gtk-2.0/gtkrc"
+
+gtk-color-scheme = "text_color:#f2f2f2\nbase_color:#000000\nfg_color:#f2f2f2\nbg_color:#000000\nselected_fg_color:#ffffff\nselected_bg_color:#d32f2f\ninsensitive_fg_color:#858585\ninsensitive_bg_color:#000000\nmenu_color:#000000\nwindow_color:#000000\ntooltip_fg_color:#ffffff\ntooltip_bg_color:#000000\nlink_color:#ff6b6b\nvisited_link_color:#e88b8b"
+
+style "skynet-black-red" {
+  bg[NORMAL] = "#000000"
+  bg[ACTIVE] = "#190606"
+  bg[PRELIGHT] = "#240808"
+  bg[SELECTED] = "#d32f2f"
+  bg[INSENSITIVE] = "#000000"
+  fg[NORMAL] = "#f2f2f2"
+  fg[ACTIVE] = "#ffffff"
+  fg[PRELIGHT] = "#ffffff"
+  fg[SELECTED] = "#ffffff"
+  fg[INSENSITIVE] = "#858585"
+  base[NORMAL] = "#000000"
+  base[ACTIVE] = "#000000"
+  base[SELECTED] = "#d32f2f"
+  base[INSENSITIVE] = "#000000"
+  text[NORMAL] = "#f2f2f2"
+  text[ACTIVE] = "#ffffff"
+  text[SELECTED] = "#ffffff"
+  text[INSENSITIVE] = "#858585"
+}
+widget "*" style "skynet-black-red"

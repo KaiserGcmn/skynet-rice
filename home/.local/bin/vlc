@@ -1,0 +1,3 @@
+#!/bin/sh
+# Apply the SKYNET Qt palette to VLC only; preserve every media argument.
+QT_QPA_PLATFORMTHEME=qt5ct exec /usr/bin/vlc "$@"

@@ -189,6 +189,86 @@ class MuteStateTests(unittest.TestCase):
                 audio.restore(self.path, timeout=3)
         self.assertEqual(self.path.read_bytes(), before)
 
+    def test_volume_snapshot_preserves_channel_order_and_excludes_monitors(self):
+        devices = [{"name": SPEAKER, "mute": False,
+                    "channel_map": "front-right,front-left",
+                    "volume": {"front-left": {"value": 20000},
+                               "front-right": {"value": 30000}}}]
+        with patch.object(audio, "pactl", side_effect=[json.dumps(devices), "[]"]):
+            saved = audio.snapshot()
+        self.assertEqual(list(saved["volumes"]["sinks"][SPEAKER]),
+                         ["front-right", "front-left"])
+        self.assertEqual(saved["volumes"]["sinks"][SPEAKER]["front-left"], 20000)
+
+    def test_restore_channel_volumes_before_unmuting_and_after_muting(self):
+        for muted in (True, False):
+            with self.subTest(muted=muted):
+                saved = state(muted, not muted)
+                saved["volumes"] = {
+                    "sinks": {SPEAKER: {"front-left": 20000, "front-right": 30000}},
+                    "sources": {MIC: {"mono": 45000}},
+                }
+                audio.write_state(self.path, saved)
+                current = state(not muted, muted)
+                current["volumes"] = {
+                    "sinks": {SPEAKER: {"front-right": 40000, "front-left": 40000}},
+                    "sources": {MIC: {"mono": 10000}},
+                }
+
+                def apply(command, name, *values):
+                    kind = "sinks" if command.startswith("set-sink-") else "sources"
+                    if command.endswith("-mute"):
+                        current[kind][name] = values[0] == "1"
+                    else:
+                        channels = current["volumes"][kind][name]
+                        current["volumes"][kind][name] = dict(zip(channels, map(int, values)))
+
+                with patch.object(audio, "snapshot", side_effect=lambda: copy.deepcopy(current)):
+                    with patch.object(audio, "pactl", side_effect=apply) as commands:
+                        audio.restore(self.path)
+                self.assertEqual(current, saved)
+                sink_calls = [call.args for call in commands.call_args_list if call.args[1] == SPEAKER]
+                self.assertIn(("set-sink-volume", SPEAKER, "30000", "20000"), sink_calls)
+                self.assertEqual(sink_calls[0][0], "set-sink-mute" if muted else "set-sink-volume")
+
+    def test_invalid_volumes_rejected_before_any_change(self):
+        for value in (-1, True, 0x80000000, "50000"):
+            saved = state()
+            saved["volumes"] = {"sinks": {SPEAKER: {"mono": value}}, "sources": {}}
+            audio.write_state(self.path, saved)
+            with patch.object(audio, "pactl") as commands:
+                with self.assertRaises(audio.AudioError):
+                    audio.restore(self.path)
+                commands.assert_not_called()
+
+    def test_changed_channel_layout_keeps_volume_and_restores_mute(self):
+        saved = state()
+        saved["volumes"] = {"sinks": {SPEAKER: {"mono": 40000}}, "sources": {}}
+        audio.write_state(self.path, saved)
+        current = state(False, True)
+        current["volumes"] = {"sinks": {SPEAKER: {"front-left": 100, "front-right": 200}}, "sources": {}}
+        _, commands = self.install_backend(current)
+        audio.restore(self.path)
+        self.assertEqual(commands.call_count, 2)
+        self.assertEqual(current["volumes"]["sinks"][SPEAKER], {"front-left": 100, "front-right": 200})
+
+    def test_save_preserves_disconnected_volumes_and_avoids_rewriting(self):
+        previous = state()
+        previous["sinks"][BLUETOOTH] = True
+        previous["volumes"] = {"sinks": {BLUETOOTH: {"mono": 22000}}, "sources": {}}
+        audio.write_state(self.path, previous)
+        self.install_backend(state())
+        with patch.object(audio, "write_state", wraps=audio.write_state) as writes:
+            audio.save(self.path, quiet=True)
+            writes.assert_not_called()
+        self.assertEqual(audio.load_state(self.path), previous)
+
+    def test_subscriber_filters_client_and_stream_events(self):
+        self.assertTrue(audio.relevant_event(b"Event 'change' on sink #4"))
+        self.assertTrue(audio.relevant_event(b"Event 'change' on source #2"))
+        self.assertFalse(audio.relevant_event(b"Event 'change' on sink-input #4"))
+        self.assertFalse(audio.relevant_event(b"Event 'new' on client #42"))
+
 
 if __name__ == "__main__":
     unittest.main()

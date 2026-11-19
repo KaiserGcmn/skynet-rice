@@ -1,0 +1,61 @@
+--- a/src/sass/_colors.scss
++++ b/src/sass/_colors.scss
+@@ -7,7 +7,7 @@
+ $theme_default_color: if($variant == 'light', $grey-900, $grey-300);
+ $theme_purple_color:  if($variant == 'light', $purple-400, $purple-300);
+ $theme_pink_color:    if($variant == 'light', $pink-400, $pink-300);
+-$theme_red_color:     if($variant == 'light', $red-600, $red-500);
++$theme_red_color:     if($variant == 'light', $red-600, #d32f2f);
+ $theme_orange_color:  if($variant == 'light', $orange-700, $orange-600);
+ $theme_yellow_color:  if($variant == 'light', $yellow-700, $yellow-a700);
+ $theme_green_color:   if($variant == 'light', $green-500, $green-400);
+@@ -134,9 +134,9 @@
+ 
+     @if ($color_type == 'blackness') {
+       @if ($type == 'e') { @return #000000; }
+-      @if ($type == 'f') { @return #030303; }
+-      @if ($type == 'g') { @return #0F0F0F; }
+-      @if ($type == 'h') { @return #121212; }
++      @if ($type == 'f') { @return #000000; }
++      @if ($type == 'g') { @return #000000; }
++      @if ($type == 'h') { @return #000000; }
+     }
+ 
+     @if ($color_type == 'default') {
+--- a/src/sass/_tweaks.scss
++++ b/src/sass/_tweaks.scss
+@@ -2,10 +2,10 @@
+ $opacity: 'default';
+ 
+ // Theme primary color
+-$theme: 'default';
++$theme: 'red';
+ 
+ // Theme size
+-$compact: 'false';
++$compact: 'true';
+ 
+ // Theme translucent
+ $translucent: 'false';
+@@ -17,13 +17,13 @@
+ $darker: 'false';
+ 
+ // Theme color type : default/nord/blackness/ferra
+-$color_type: 'default';
++$color_type: 'blackness';
+ 
+ // Windows outline style
+ $rimless: 'false';
+ 
+ // Windows outline style
+-$sidebar: 'styled'; // styled/normal
++$sidebar: 'normal'; // styled/normal
+ 
+ // Gnome-Shell version
+ $shell_version: '42';
+@@ -35,4 +35,4 @@
+ $colorful: 'false';
+ 
+ // Default corner radius value
+-$default_corner: 6px;
++$default_corner: 4px;

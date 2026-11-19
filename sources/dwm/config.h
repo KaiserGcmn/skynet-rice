@@ -2,9 +2,9 @@
 #include <X11/XF86keysym.h>
 
 /* appearance */
-static const unsigned int borderpx  = 4;        /* REDLINE: hard window borders */
+static const unsigned int borderpx  = 2;        /* SKYNET: thin red focus rails */
 static const unsigned int barpadding = 12;      /* total vertical bar padding */
-static const unsigned int barlinepx  = 3;       /* red rail below the bar */
+static const unsigned int barlinepx  = 1;       /* red rail below the bar */
 static const unsigned int statuspadding = 8;   /* horizontal inset per panel */
 static const unsigned int statusgap = 3;       /* black separator between panels */
 static const unsigned int snap      = 32;       /* snap pixel */
@@ -15,37 +15,41 @@ static const unsigned int systrayonleft = 0;    /* 0: systray in the right corne
 static const unsigned int systrayspacing = 2;   /* systray spacing */
 static const int systraypinningfailfirst = 1;   /* 1: if pinning fails, display systray on the first monitor, False: display systray on the last monitor*/
 static const int showsystray        = 1;     /* 0 means no systray */
-/* REDLINE INDUSTRIAL: steel dividers, block labels, signal-red rail. */
-static const char *fonts[]          = { "JetBrains Mono:style=ExtraBold:size=13" };
+/* SKYNET console: restrained red accents, steel labels and a continuous rail. */
+static const char *fonts[]          = { "JetBrains Mono:style=SemiBold:size=13" };
 static const char dmenufont[]       = "JetBrains Mono:style=ExtraBold:size=13";
 static const char col_gray1[]       = "#070809";
-static const char col_gray2[]       = "#393D42";
+static const char col_gray2[]       = "#252C36";
 static const char col_gray3[]       = "#D3D6DA";
 static const char col_gray4[]       = "#FFFFFF";
-static const char col_selbg[]       = "#C3131C";
-static const char col_selborder[]   = "#FF1B22";
+static const char col_selbg[]       = "#481722";
+static const char col_selborder[]   = "#FF4050";
 static const char dmenu_bg[]        = "#070809";
-static const char dmenu_selbg[]     = "#D21920";
+static const char dmenu_selbg[]     = "#AE2031";
 static const char *colors[][3]      = {
 	/*               fg         bg         border   */
-	[SchemeNorm] = { col_gray3, col_gray1, col_gray2 },
+	[SchemeNorm] = { "#A9BBC5", "#08090B", col_gray2 },
 	[SchemeSel]  = { col_gray4, col_selbg, col_selborder },
-	[SchemeStatusCPU]  = { "#E1E5EA", "#101318", "#3B444F" },
-	[SchemeStatusCPUBadge] = { "#FFFFFF", "#A51420", "#FF3B38" },
-	[SchemeStatusCPUMeter] = { "#FF3B38", "#2B333E", "#3B444F" },
-	[SchemeStatusBAT]  = { "#D3D8DE", "#0B0D10", col_selborder },
-	[SchemeStatusBATMeter] = { "#FF3B38", "#0B0D10", col_selborder },
-	[SchemeStatusBATCell1] = { "#FF3B38", "#0B0D10", col_selborder },
-	[SchemeStatusBATCell2] = { "#FF5956", "#0B0D10", col_selborder },
-	[SchemeStatusBATCell3] = { "#FF7774", "#0B0D10", col_selborder },
-	[SchemeStatusBATCell4] = { "#FF9592", "#0B0D10", col_selborder },
-	[SchemeStatusBATCell5] = { "#FFB3B0", "#0B0D10", col_selborder },
-	[SchemeStatusDate] = { "#D3D6DA", "#20242A", col_gray2 },
-	[SchemeStatusTime] = { "#FFFFFF", col_selbg, col_selborder },
+	[SchemeBarTitle] = { "#DDE3EA", "#08090B", "#69222E" },
+	[SchemeBarTagSel] = { "#ECEEF1", "#481722", "#FF4050" },
+	[SchemeBarLayout] = { "#A9BBC5", "#080A0E", "#69222E" },
+	[SchemeStatusLabel] = { "#A9BBC5", "#080A0E", "#69222E" },
+	[SchemeStatusCPU]  = { "#DDE3EA", "#080A0E", "#69222E" },
+	[SchemeStatusCPUBadge] = { "#ECEEF1", "#481722", "#FF4050" },
+	[SchemeStatusCPUMeter] = { "#FF4050", "#28242A", "#69222E" },
+	[SchemeStatusBAT]  = { "#DDE3EA", "#080A0E", "#69222E" },
+	[SchemeStatusBATMeter] = { "#FF4050", "#080A0E", "#FF4050" },
+	[SchemeStatusBATCell1] = { "#FF4050", "#080A0E", "#FF4050" },
+	[SchemeStatusBATCell2] = { "#FA4B5D", "#080A0E", "#FF4050" },
+	[SchemeStatusBATCell3] = { "#FF6A76", "#080A0E", "#FF4050" },
+	[SchemeStatusBATCell4] = { "#FF9098", "#080A0E", "#FF4050" },
+	[SchemeStatusBATCell5] = { "#FFB3B9", "#080A0E", "#FF4050" },
+	[SchemeStatusDate] = { "#A9BBC5", "#080A0E", "#69222E" },
+	[SchemeStatusTime] = { "#ECEEF1", "#080A0E", "#A42839" },
 };
 
 /* tagging */
-static const char *tags[] = { "[01]", "[02]", "[03]", "[04]", "[05]", "[06]" };
+static const char *tags[] = { "01", "02", "03", "04", "05", "06" };
 
 static const Rule rules[] = {
 	/* xprop(1):
@@ -66,9 +70,9 @@ static const int refreshrate = 120;  /* refresh rate (per second) for client mov
 
 static const Layout layouts[] = {
 	/* symbol     arrange function */
-	{ "[TILE]",   tile },    /* first entry is default */
-	{ "[FLOAT]",  NULL },    /* no layout function means floating behavior */
-	{ "[MONO]",   monocle },
+	{ "TILE",   tile },    /* first entry is default */
+	{ "FLOAT",  NULL },    /* no layout function means floating behavior */
+	{ "MONO",   monocle },
 };
 
 /* key definitions */

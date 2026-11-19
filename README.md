@@ -1,7 +1,7 @@
 # SKYNET / REDLINE rice
 
-KaiserGcmn'nin Debian 13 üzerinde kullandığı DWM masaüstünün kaynak kodları,
-etkin ayarları ve **Devuan + OpenRC** geçiş hazırlığı. Anlık görüntü: 18 Ekim 2026.
+KaiserGcmn'nin DWM masaüstünün kaynak kodları ve ayarları. İlk arşiv Debian 13
+üzerinden 18 Ekim 2026'da alındı; güncel sistem **Devuan 6 + SysVinit/elogind**.
 
 ![SKYNET duvar kâğıdı](home/wallpapers/skynet.png)
 
@@ -12,16 +12,18 @@ etkin ayarları ve **Devuan + OpenRC** geçiş hazırlığı. Anlık görüntü:
 | Ses, parlaklık, kilit, USB-C ve giriş yardımcıları | `runtime/` |
 | Bash, Kitty, Dunst, Fastfetch, GTK, font, duvar kâğıdı | `home/` |
 | Etkin `autostart.sh`, GRUB, TLP, udev, nftables, oturum ayarları | `profiles/debian/` |
-| OpenRC başlangıç dosyası taslakları ve geçiş durumu | `profiles/openrc/`, [DEVUAN.md](docs/DEVUAN.md) |
+| Güncel SysVinit başlangıç düzeni ve arşiv sınırları | [DEVUAN.md](docs/DEVUAN.md) |
 | ExpertBook LED, TP-Link rtw88, VMD düzeltmesi | `drivers/` |
 | APT paketleri ve VS Code/Node eklenti listeleri | `manifests/` |
 | Önceki Debian bakım betikleri | `reference/debian-maintenance/` |
 
-Devuan/OpenRC üzerinde henüz çalışma testi yapılmadı. Özellikle kilit
-dinleyicisinin `systemd-run` kullanımı ve giriş/kilit ekranındaki güç düğmeleri
-uyarlanmayı bekliyor. Bunlar [geçiş tablosunda](docs/DEVUAN.md) açıkça kayıtlı.
-Kullanıcı ayarlarını geri yükleme komutu systemd servislerini veya oturum
-başlatma dosyalarını kurmaz; servis/çekirdek/GRUB ayarları ayrıca değerlendirilir.
+Kullanılmayan systemd servis arşivleri, eski kilit başlatıcısı ve OpenRC
+taslakları 28 Ekim 2026'da kaldırıldı. Çalışan sistem SysVinit hizmetlerini ve
+`skynet-session` içindeki `xss-lock` gözetimini kullanır; denetim kapsamı
+[COMPATIBILITY.md](docs/COMPATIBILITY.md) içindedir. Depodaki temel giriş/kilit
+kaynakları hâlâ Debian güç çağrılarını içerir; kurulu Devuan sürümünün yerel
+uyarlaması olmadan derleme çıktısı kurulmaz. Kullanıcı ayarlarını geri yükleme
+komutu servis, oturum başlangıcı, çekirdek veya GRUB ayarlarını kurmaz.
 
 ## Çek ve kullanıcı ayarlarını geri yükle
 
@@ -35,8 +37,8 @@ python3 scripts/restore-home.py --apply
 ```
 
 `--apply`, değişecek dosyaların önceki hâlini
-`~/.local/state/skynet-rice/backups/` altında saklar. Duvar kâğıdı ve Fastfetch
-yolları yeni kullanıcı dizinine uyarlanır. Aynı komutun tekrar çalışması,
+`~/.local/state/skynet-rice/backups/` altında saklar. Fastfetch, saf ASCII küre
+ve SKYNET yazısıyla sistem bilgi panelini gösterir; animasyon yardımcısı kurmaz. Aynı komutun tekrar çalışması,
 içeriği değişmeyen dosyalara dokunmaz.
 
 ## Derle
@@ -51,8 +53,8 @@ python3 scripts/build.py --with-locker
 Derleme sıradan kullanıcıyla yapılır; varsayılan paralellik iki iştir.
 Çıktılar `.build/desktop-*/rootfs/` altında toplanır, çalışan sisteme kurulmaz.
 XSecureLock kaynağı sabit sürüm ve SHA-256 doğrulamasıyla indirilir.
-Bu derleme Debian'daki mevcut programları yeniden üretir; OpenRC uyarlamasını
-otomatik tamamlamaz. Kurulum sırası ve sınırlar: [RESTORE.md](docs/RESTORE.md).
+Bu derleme yerel Devuan kaynak yamasını otomatik uygulamaz.
+Kurulum sırası ve sınırlar: [RESTORE.md](docs/RESTORE.md).
 
 Bu depo kişisel dosyaların veya tüm diskin yedeği değildir. Oturum tokenları,
 SSH/DKMS özel anahtarları, tarayıcı profilleri, Wi-Fi parolaları ve oyun

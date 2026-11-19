@@ -1,88 +1,50 @@
 #!/bin/sh
-# PipeWire volume control with a single, updating Dunst notification.
+# PulseAudio and pipewire-pulse use the same pactl interface.
 set -eu
-export LC_NUMERIC=C
-
-case "${1:-show}" in
-    up|down|mute|mic-mute|show) volume_action=${1:-show} ;;
-    *) printf '%s\n' 'Usage: dwm-volume [up|down|mute|mic-mute|show]' >&2; exit 2 ;;
-esac
-
-for volume_command in wpctl dunstify flock; do
-    if ! command -v "$volume_command" >/dev/null 2>&1; then
-        printf 'Required command not found: %s\n' "$volume_command" >&2
-        exit 1
-    fi
-done
-
-# Keep rapid key repeats from sending out-of-order notifications.
+export LC_ALL=C
+case "${1:-show}" in up|down|mute|mic-mute|show) action=${1:-show};; *) exit 2;; esac
 umask 077
-volume_lock_dir="${XDG_RUNTIME_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}}"
-mkdir -p "$volume_lock_dir"
-exec 9>"$volume_lock_dir/dwm-volume.lock"
+exec 9>"${XDG_RUNTIME_DIR:-$HOME/.cache}/dwm-volume.lock"
 flock -w 2 9
-
-case "$volume_action" in
-    up)
-        wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+
-        wpctl set-mute @DEFAULT_AUDIO_SINK@ 0
-        ;;
-    down)
-        wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%-
-        ;;
-    mute)
-        wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
-        ;;
-    mic-mute)
-        wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle
-        volume_status=$(LC_ALL=C wpctl get-volume @DEFAULT_AUDIO_SOURCE@)
-        case "$volume_status" in
-            *'[MUTED]'*)
-                volume_summary='Microphone muted'
-                volume_icon=microphone-sensitivity-muted
-                ;;
-            *)
-                volume_summary='Microphone unmuted'
-                volume_icon=audio-input-microphone
-                ;;
-        esac
-        dunstify -a dwm-volume -u low -t 1500 \
-            -h string:x-dunst-stack-tag:dwm-microphone \
-            -i "$volume_icon" "$volume_summary"
-        exit 0
-        ;;
+sink=@DEFAULT_SINK@
+case "$action" in
+ up) current=$(pactl get-sink-volume "$sink" | awk '/Volume:/ {gsub(/%/, "", $5); print $5; exit}')
+     level=$((current + 5)); [ "$level" -le 100 ] || level=100
+     pactl set-sink-volume "$sink" "$level%"; pactl set-sink-mute "$sink" 0;;
+ down) pactl set-sink-volume "$sink" -5%;;
+ mute) pactl set-sink-mute "$sink" toggle;;
+ mic-mute)
+     pactl set-source-mute @DEFAULT_SOURCE@ toggle
+     state=$(pactl get-source-mute @DEFAULT_SOURCE@)
+     case "$state" in *yes) label='Microphone muted';; *) label='Microphone unmuted';; esac
+     dunstify -a dwm-volume -u low -t 1500 -h string:x-dunst-stack-tag:dwm-microphone "$label"
+     exit 0;;
 esac
+level=$(pactl get-sink-volume "$sink" | awk '/Volume:/ {gsub(/%/, "", $5); print $5; exit}')
+state=$(pactl get-sink-mute "$sink")
+label="Volume: $level%"; icon=audio-volume-high
+case "$state" in *yes) label='Volume muted'; level=0; icon=audio-volume-muted;; esac
+dunstify -a dwm-volume -u low -t 1500 -h string:x-dunst-stack-tag:dwm-volume -h "int:value:$level" -i "$icon" "$label"
 
-volume_status=$(LC_ALL=C wpctl get-volume @DEFAULT_AUDIO_SINK@)
-volume_percent=$(printf '%s\n' "$volume_status" | awk '
-    $1 == "Volume:" && $2 ~ /^[0-9]+([.][0-9]+)?$/ { printf "%.0f", $2 * 100 }
-')
-if [ -z "$volume_percent" ]; then
-    printf 'Could not read volume: %s\n' "$volume_status" >&2
-    exit 1
-fi
-
-volume_summary="Volume: $volume_percent%"
-volume_bar=$volume_percent
-if [ "$volume_bar" -gt 100 ]; then volume_bar=100; fi
-if [ "$volume_percent" -eq 0 ]; then
-    volume_icon=audio-volume-muted
-elif [ "$volume_percent" -le 33 ]; then
-    volume_icon=audio-volume-low
-elif [ "$volume_percent" -le 66 ]; then
-    volume_icon=audio-volume-medium
-else
-    volume_icon=audio-volume-high
-fi
-case "$volume_status" in
-    *'[MUTED]'*)
-        volume_summary='Volume muted'
-        volume_icon=audio-volume-muted
-        volume_bar=0
-        ;;
+# Give audible feedback only for speaker level keys, after the level changed.
+# A separate nonblocking lock skips overlapping previews during key repeat.
+case "$action" in
+ up|down)
+     feedback_sound="${SKYNET_VOLUME_SOUND:-$HOME/customsounds/Soundleveltest.mp3}"
+     if [ "$level" -gt 0 ] && [ -r "$feedback_sound" ] && command -v mpv >/dev/null 2>&1; then
+         (
+             # Do not let playback hold the volume/notification control lock.
+             exec 9>&-
+             flock -n 8 || exit 0
+             exec mpv --no-config --load-scripts=no --no-video \
+                 --audio-display=no --no-terminal --really-quiet \
+                 --stop-screensaver=no --ao=pulse \
+                 --audio-client-name='SKYNET Volume' --volume=100 \
+                 --audio-buffer=0.05 --pulse-buffer=50 \
+                 --af='lavfi=[silenceremove=start_periods=1:start_duration=0.002:start_threshold=-60dB:start_silence=0.01:detection=peak:window=0.005]' \
+                 -- "$feedback_sound"
+         ) 8>"${XDG_RUNTIME_DIR:-$HOME/.cache}/dwm-volume-feedback.lock" \
+             </dev/null >/dev/null 2>&1 &
+     fi
+     ;;
 esac
-
-dunstify -a dwm-volume -u low -t 1500 \
-    -h string:x-dunst-stack-tag:dwm-volume \
-    -h int:value:"$volume_bar" \
-    -i "$volume_icon" "$volume_summary"

@@ -1,6 +1,10 @@
 kitty
 dunst
-feh
+mpv
+qimgv
+vlc
+qt5ct
+ffmpeg
 fonts-jetbrains-mono
 fonts-noto-color-emoji
 fontconfig
@@ -8,6 +12,8 @@ breeze-icon-theme
 breeze-cursor-theme
 adwaita-icon-theme
 network-manager-gnome
+gnome-keyring
+libpam-gnome-keyring
 blueman
 polkit-kde-agent-1
 x11-xserver-utils

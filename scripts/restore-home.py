@@ -39,9 +39,6 @@ def plan(home):
             if parent.exists() and not parent.is_dir():
                 raise ValueError(f'Parent is not a directory: {parent}')
         data = source.read_bytes()
-        # This placeholder occurs inside a JSON string, so escape the new path.
-        if str(relative) == '.config/fastfetch/config.jsonc':
-            data = data.replace(b'@@HOME@@', json.dumps(str(home))[1:-1].encode())
         if destination.exists() and destination.read_bytes() == data:
             continue
         entries.append((source, destination, data))

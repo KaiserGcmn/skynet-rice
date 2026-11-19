@@ -1,5 +1,12 @@
 # Yerel kilit ekranı ve güç ayarları
 
+28 Ekim 2026 notu: aşağıdaki eski Debian uygulama/test geçmişidir. Çalışan
+Devuan sistemi SysVinit/elogind, `skynet-session` ve `xss-lock` kullanır;
+kurulu güç yardımcısı yerel Devuan yamasıyla `loginctl` çağırır. Eski systemd
+hizmetleri ve `dwm-session-lock` kaynak/runtime kopyaları kaldırıldı.
+Temel XSecureLock yamasındaki Debian çağrıları korunmuştur; yeniden derleme
+sınırları için [DEVUAN.md](../../docs/DEVUAN.md) belgesine bak.
+
 Debian XSecureLock 1.9.0 kaynağına `Reboot [F11]`, `Shut down [F12]` denetimleri ve isteğe bağlı
 klavye/fare hareketsizliğiyle ekran kapatma zamanlayıcısı eklendi.
 Sistem paketi `/usr/bin/xsecurelock` değiştirilmedi. Yerel program:
@@ -21,28 +28,21 @@ Zorla kapatma kullanılmaz. İşlem engellenirse ekran kilitli kalır ve düğme
 `Reboot blocked` veya `Shutdown blocked` yazar. Kapatma, açık dosyaları uygulamalarda kaydetmenin
 yerine geçmez.
 
-## İlgili dosyalar
+## Güncel ilgili dosyalar
 
-- `/usr/local/libexec/dwm-session-lock`: logind kilit isteğini dinler.
-- `~/.config/systemd/user/dwm-session-lock@.service`: her dwm oturumuna ait hizmet.
-- `~/.xprofile`: oturumda kilit dinleyicisini başlatır ve ekran zaman aşımını kapatır.
-- `~/.config/powerdevilrc`: Plasma'nın AC/Battery/LowBattery profilleri.
-- `/etc/systemd/sleep.conf.d/80-no-sleep.conf`: tüm uyku/hibernasyon türleri kapalı.
-- `/etc/systemd/logind.conf.d/85-no-sleep.conf`: uyku tuşları ve kapak ekranı kilitler.
-- `/etc/systemd/logind.conf.d/80-power-button-lock.conf`: kısa güç tuşu ekranı kilitler.
+- `/usr/local/bin/skynet-session`: `xss-lock` sürecini oturumla birlikte yönetir.
+- `/usr/local/libexec/skynet-lock`: etkin kilit başlatıcısı ve görsel ayarları.
+- `/etc/elogind/`: mevcut güç tuşu/kapak ve uyku politikası.
 
-Uyku hedefleri kalıcı olarak maskelenmiştir. Çekirdek, GRUB, initramfs, swap ve
-dosya sistemi ayarları bu işlem kapsamında değiştirilmedi.
-
-Dwm kilit ekranında 5 saniye klavye/fare hareketsizliğinden sonra ekran kapanır.
-Normal masaüstünde ekran koruyucu ve DPMS kapalıdır.
+Güncel zamanlayıcılar ve güvenlik doğrulaması [COMPATIBILITY.md](../../docs/COMPATIBILITY.md)
+içindedir. Eski Debian systemd ayarları geri yüklenmemelidir.
 
 ## Görünüm — 2026-10-14
 
 Greetd/tuigreet görünümüne yakın siyah zemin, ince köşeli gri çerçeve ve
 13 punto JetBrains Mono kullanılır. Çerçeve başlığında “Session locked”, altında
 Enter yönergesi vardır. Saat/tarih, parola yıldızları, klavye düzeni ve
-Kapat/F12 korunur. Görsel ayarlar `dwm-session-lock` içindedir.
+Kapat/F12 korunur. O tarihteki görsel ayarlar artık kaldırılan `dwm-session-lock` içindeydi.
 
 Bu tema özel Xvfb ekranında önizlendi; dört deneme karakterinin yıldız olarak
 görünmesi, klavye yakalaması ve gerçek kapatma yapmayan test modunda F12/fare
@@ -350,3 +350,30 @@ Tests: eleven sysfs fixture cases; live GTK-label and X11-pixel checks for unplu
 replug, percentage changes and stale status; remap refresh. Measured updates
 were within one second in the private Xvfb test. No real credentials or power
 actions were used. New binaries take effect the next time each screen opens.
+
+
+## Devuan biyometrik sayaç görünümü — 2026-10-23
+
+Bu makinede önceki parmak izi kurulumu `/usr/local/libexec/auth_x11_skynet`
+görsel yardımcısını kullanır. Yeni sayaç bu yardımcının içine Cairo ile çizilir.
+`authproto_pam`, PAM ayarları ve ana `xsecurelock-power` ikilisi aynı kalır.
+Güncel kaynak farkı `~/.local/share/skynet-rice/devuan-source.patch` içindedir;
+depodaki `local-changes.patch` tek başına makinenin Devuan katmanını içermez.
+Yama uygulandıktan sonra `make auth_x11` görsel yardımcıyı üretir; yeni yardımcı
+`-lcairo` ile bağlanır. Ayrıntılar: `docs/BIOMETRIC.md`.
+
+## Kilitte ses, mikrofon ve parlaklık — 2026-11-02
+
+Yeni sabit tuş eşlemeleri ve görsel durum panelleri
+[LOCK-CONTROLS.md](../../docs/LOCK-CONTROLS.md) içinde belgelenmiştir.
+Kilit çekirdeği ve doğrulama yardımcıları değiştirilmez. Güncel başlatıcının
+kaynağı `runtime/usr/local/libexec/skynet-lock` dosyasıdır.
+
+
+## Parmak izi görünümü — 3 Kasım 2026
+
+Güncel kilit panelinin Cairo çizimi bu dizindeki `skynet-biometric.h`
+dosyasında saklanır. Devuan makine katmanı bu başlığı ve auth arayüzü
+entegrasyonunu içerir; temel `local-changes.patch` tek başına güncel makine
+kurulumu değildir. Derleme, kurulum kapsamı ve testler:
+[BIOMETRIC.md](../../docs/BIOMETRIC.md).

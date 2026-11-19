@@ -1,0 +1,13 @@
+{
+  "vlcrc": {
+    "qt-dark-palette": "0",
+    "qt-slider-colours": "96;48;56;150;48;60;198;83;92;226;116;125"
+  },
+  "qt_interface": {
+    "MainWindow": {
+      "QtStyle": "Fusion"
+    }
+  },
+  "platform_theme": "qt5ct",
+  "color_scheme": "skynet-industrial.conf"
+}

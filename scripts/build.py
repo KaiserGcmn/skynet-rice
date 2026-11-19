@@ -59,6 +59,18 @@ def main():
             install(src / binary, stage / target / binary)
     env = dict(os.environ, DEB_BUILD_MAINT_OPTIONS='hardening=+all')
     flags = lambda key: shlex.split(subprocess.check_output(['dpkg-buildflags', '--get', key], env=env, text=True))
+    tray = work / 'snixembed'
+    shutil.copytree(ROOT / 'sources/snixembed', tray)
+    tray_env = dict(env)
+    for key in ('CPPFLAGS', 'CFLAGS', 'LDFLAGS'):
+        tray_env[key] = shlex.join(flags(key))
+    run(['make', '-j' + str(args.jobs)], tray, tray_env)
+    install(tray / 'snixembed', stage / 'usr/local/bin/snixembed')
+    agent = work / 'mate-polkit-skynet'
+    shutil.copytree(ROOT / 'sources/mate-polkit-skynet', agent)
+    run(['make', '-j' + str(args.jobs)], agent, tray_env)
+    install(agent / 'polkit-mate-authentication-agent-1',
+            stage / 'usr/local/libexec/polkit-mate-authentication-agent-1')
     style = ROOT / 'sources/xsecurelock-style'
     for name in ('saver-lock-style', 'tuigreet-battery'):
         libs = ['xft', 'xrender', 'xscrnsaver', 'libpng'] if name == 'saver-lock-style' else []

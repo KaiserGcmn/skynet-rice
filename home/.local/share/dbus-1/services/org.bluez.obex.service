@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=org.bluez.obex
+# No local phonebook/calendar backend; keep file transfer profiles enabled.
+Exec=/usr/libexec/bluetooth/obexd --noplugin=pbap,irmc

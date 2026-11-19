@@ -1,0 +1,1040 @@
+--- a/go.mod
++++ b/go.mod
+@@ -12,9 +12,7 @@
+ 	github.com/edwvee/exiffix v0.0.0-20240229113213-0dbb146775be
+ 	github.com/google/go-cmp v0.7.0
+ 	github.com/google/uuid v1.6.0
+-	github.com/kovidgoyal/imaging v1.6.4
+ 	github.com/seancfoley/ipaddress-go v1.7.1
+-	github.com/shirou/gopsutil/v3 v3.24.5
+ 	github.com/zeebo/xxh3 v1.0.2
+ 	golang.org/x/exp v0.0.0-20230801115018-d63ba01acd4b
+ 	golang.org/x/image v0.25.0
+@@ -23,14 +21,18 @@
+ )
+ 
+ require (
+-	github.com/disintegration/imaging v1.6.2 // indirect
++	github.com/ebitengine/purego v0.8.2 // indirect
++	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
++	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
++)
++
++require (
++	github.com/disintegration/imaging v1.6.2
+ 	github.com/go-ole/go-ole v1.2.6 // indirect
+ 	github.com/klauspost/cpuid/v2 v2.2.5 // indirect
+-	github.com/lufia/plan9stats v0.0.0-20230326075908-cb1d2100619a // indirect
+-	github.com/power-devops/perfstat v0.0.0-20221212215047-62379fc7944b // indirect
+ 	github.com/rwcarlsen/goexif v0.0.0-20190401172101-9e8deecbddbd // indirect
+ 	github.com/seancfoley/bintree v1.3.1 // indirect
+-	github.com/shoenig/go-m1cpu v0.1.6 // indirect
++	github.com/shirou/gopsutil/v4 v4.25.2
+ 	github.com/tklauser/go-sysconf v0.3.12 // indirect
+ 	github.com/tklauser/numcpus v0.6.1 // indirect
+ 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
+--- a/go.sum
++++ b/go.sum
+@@ -14,11 +14,13 @@
+ github.com/disintegration/imaging v1.6.2/go.mod h1:44/5580QXChDfwIclfc/PCwrr44amcmDAg8hxG0Ewe4=
+ github.com/dlclark/regexp2 v1.11.5 h1:Q/sSnsKerHeCkc/jSTNq1oCm7KiVgUMZRDUoRu0JQZQ=
+ github.com/dlclark/regexp2 v1.11.5/go.mod h1:DHkYz0B9wPfa6wondMfaivmHpzrQ3v9q8cnmRbL6yW8=
++github.com/ebitengine/purego v0.8.2 h1:jPPGWs2sZ1UgOSgD2bClL0MJIqu58nOmIcBuXr62z1I=
++github.com/ebitengine/purego v0.8.2/go.mod h1:iIjxzd6CiRiOG0UyXP+V1+jWqUXVjPKLAI0mRfJZTmQ=
+ github.com/edwvee/exiffix v0.0.0-20240229113213-0dbb146775be h1:FNPYI8/ifKGW7kdBdlogyGGaPXZmOXBbV1uz4Amr3s0=
+ github.com/edwvee/exiffix v0.0.0-20240229113213-0dbb146775be/go.mod h1:G3dK5MziX9e4jUa8PWjowCOPCcyQwxsZ5a0oYA73280=
+ github.com/go-ole/go-ole v1.2.6 h1:/Fpf6oFPoeFik9ty7siob0G6Ke8QvQEuVcuChpwXzpY=
+ github.com/go-ole/go-ole v1.2.6/go.mod h1:pprOEPIfldk/42T2oK7lQ4v4JSDwmV0As9GaiUsvbm0=
+-github.com/google/go-cmp v0.5.9/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
++github.com/google/go-cmp v0.5.6/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/gNBxE=
+ github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
+ github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX3N/iU=
+ github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
+@@ -28,28 +30,22 @@
+ github.com/jessevdk/go-flags v1.4.0/go.mod h1:4FA24M0QyGHXBuZZK/XkWh8h0e1EYbRYJSGM75WSRxI=
+ github.com/klauspost/cpuid/v2 v2.2.5 h1:0E5MSMDEoAulmXNFquVs//DdoomxaoTY1kUhbc/qbZg=
+ github.com/klauspost/cpuid/v2 v2.2.5/go.mod h1:Lcz8mBdAVJIBVzewtcLocK12l3Y+JytZYpaMropDUws=
+-github.com/kovidgoyal/imaging v1.6.4 h1:K0idhRPXnRrJBKnBYcTfI1HTWSNDeAn7hYDvf9I0dCk=
+-github.com/kovidgoyal/imaging v1.6.4/go.mod h1:bEIgsaZmXlvFfkv/CUxr9rJook6AQkJnpB5EPosRfRY=
+-github.com/lufia/plan9stats v0.0.0-20230326075908-cb1d2100619a h1:N9zuLhTvBSRt0gWSiJswwQ2HqDmtX/ZCDJURnKUt1Ik=
+-github.com/lufia/plan9stats v0.0.0-20230326075908-cb1d2100619a/go.mod h1:JKx41uQRwqlTZabZc+kILPrO/3jlKnQ2Z8b7YiVw5cE=
++github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 h1:6E+4a0GO5zZEnZ81pIr0yLvtUWk2if982qA3F3QD6H4=
++github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0/go.mod h1:zJYVVT2jmtg6P3p1VtQj7WsuWi/y4VnjVBn7F8KPB3I=
+ github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
+ github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
+-github.com/power-devops/perfstat v0.0.0-20221212215047-62379fc7944b h1:0LFwY6Q3gMACTjAbMZBjXAqTOzOwFaj2Ld6cjeQ7Rig=
+-github.com/power-devops/perfstat v0.0.0-20221212215047-62379fc7944b/go.mod h1:OmDBASR4679mdNQnz2pUhc2G8CO2JrUAVFDRBDP/hJE=
++github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c h1:ncq/mPwQF4JjgDlrVEn3C11VoGHZN7m8qihwgMEtzYw=
++github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c/go.mod h1:OmDBASR4679mdNQnz2pUhc2G8CO2JrUAVFDRBDP/hJE=
+ github.com/rwcarlsen/goexif v0.0.0-20190401172101-9e8deecbddbd h1:CmH9+J6ZSsIjUK3dcGsnCnO41eRBOnY12zwkn5qVwgc=
+ github.com/rwcarlsen/goexif v0.0.0-20190401172101-9e8deecbddbd/go.mod h1:hPqNNc0+uJM6H+SuU8sEs5K5IQeKccPqeSjfgcKGgPk=
+ github.com/seancfoley/bintree v1.3.1 h1:cqmmQK7Jm4aw8gna0bP+huu5leVOgHGSJBEpUx3EXGI=
+ github.com/seancfoley/bintree v1.3.1/go.mod h1:hIUabL8OFYyFVTQ6azeajbopogQc2l5C/hiXMcemWNU=
+ github.com/seancfoley/ipaddress-go v1.7.1 h1:fDWryS+L8iaaH5RxIKbY0xB5Z+Zxk8xoXLN4S4eAPdQ=
+ github.com/seancfoley/ipaddress-go v1.7.1/go.mod h1:TQRZgv+9jdvzHmKoPGBMxyiaVmoI0rYpfEk8Q/sL/Iw=
+-github.com/shirou/gopsutil/v3 v3.24.5 h1:i0t8kL+kQTvpAYToeuiVk3TgDeKOFioZO3Ztz/iZ9pI=
+-github.com/shirou/gopsutil/v3 v3.24.5/go.mod h1:bsoOS1aStSs9ErQ1WWfxllSeS1K5D+U30r2NfcubMVk=
+-github.com/shoenig/go-m1cpu v0.1.6 h1:nxdKQNcEB6vzgA2E2bvzKIYRuNj7XNJ4S/aRSwKzFtM=
+-github.com/shoenig/go-m1cpu v0.1.6/go.mod h1:1JJMcUBvfNwpq05QDQVAnx3gUHr9IYF7GNg9SUEw2VQ=
+-github.com/shoenig/test v0.6.4 h1:kVTaSd7WLz5WZ2IaoM0RSzRsUD+m8wRR+5qvntpn4LU=
+-github.com/shoenig/test v0.6.4/go.mod h1:byHiCGXqrVaflBLAMq/srcZIHynQPQgeyvkvXnjqq0k=
+-github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
+-github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
++github.com/shirou/gopsutil/v4 v4.25.2 h1:NMscG3l2CqtWFS86kj3vP7soOczqrQYIEhO/pMvvQkk=
++github.com/shirou/gopsutil/v4 v4.25.2/go.mod h1:34gBYJzyqCDT11b6bMHP0XCvWeU3J61XRT7a2EmCRTA=
++github.com/stretchr/testify v1.10.0 h1:Xv5erBjTwe/5IxqUQTdXv5kgmIvbHo3QQyRwhJsOfJA=
++github.com/stretchr/testify v1.10.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
+ github.com/tklauser/go-sysconf v0.3.12 h1:0QaGUFOdQaIVdPgfITYzaTegZvdCjmYO52cSFAEVmqU=
+ github.com/tklauser/go-sysconf v0.3.12/go.mod h1:Ho14jnntGE1fpdOqQEEaiKRpvIavV0hSfmBq8nJbHYI=
+ github.com/tklauser/numcpus v0.6.1 h1:ng9scYS7az0Bk4OZLvrNXNSAO2Pxr1XXRAPyjhIx+Fk=
+@@ -73,6 +69,7 @@
+ golang.org/x/sys v0.31.0 h1:ioabZlmFYtWhL+TRYpcnNlLwhyxaM9kWTDEmfnprqik=
+ golang.org/x/sys v0.31.0/go.mod h1:BJP2sWEmIv4KK5OTEluFJCKSidICx8ciO85XgH3Ak8k=
+ golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
++golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
+ gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
+ gopkg.in/yaml.v1 v1.0.0-20140924161607-9f9df34309c0/go.mod h1:WDnlLJ4WF5VGsH/HVa3CI79GS0ol3YnhVnKP89i0kNg=
+ gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
+--- a/kittens/ssh/main.go
++++ b/kittens/ssh/main.go
+@@ -533,7 +533,7 @@
+ 	if err != nil {
+ 		return
+ 	}
+-	canary, err := secrets.TokenHex()
++	canary, err := secrets.TokenAlphabet(secrets.DEFAULT_NUM_OF_BYTES_FOR_TOKEN, "0123456789")
+ 	if err != nil {
+ 		return
+ 	}
+--- a/kitty/child.py
++++ b/kitty/child.py
+@@ -362,7 +362,7 @@
+         self.terminal_ready_fd = ready_write_fd
+         if self.child_fd is not None:
+             os.set_blocking(self.child_fd, False)
+-        if not is_macos:
++        if not is_macos and os.path.isdir('/run/systemd/system'):
+             ppid = getpid()
+             try:
+                 fast_data_types.systemd_move_pid_into_new_scope(pid, f'kitty-{ppid}-{self.id}.scope', f'kitty child process: {pid} launched by: {ppid}')
+--- a/kitty/modes.h
++++ b/kitty/modes.h
+@@ -65,6 +65,7 @@
+ #define FOCUS_TRACKING (1004 << 5)
+ #define MOUSE_UTF8_MODE (1005 << 5)
+ #define MOUSE_SGR_MODE (1006 << 5)
++#define ALTERNATE_SCROLL (1007 << 5)
+ #define MOUSE_URXVT_MODE (1015 << 5)
+ #define MOUSE_SGR_PIXEL_MODE (1016 << 5)
+ 
+--- a/kitty/mouse.c
++++ b/kitty/mouse.c
+@@ -996,7 +996,7 @@
+                     screen_history_scroll(screen, abs(s), upwards);
+                     if (screen->selections.in_progress) update_drag(w);
+                 }
+-                else fake_scroll(w, abs(s), upwards);
++                else if (screen->modes.mALTERNATE_SCROLL) fake_scroll(w, abs(s), upwards);
+             }
+         }
+     }
+--- a/kitty/screen.c
++++ b/kitty/screen.c
+@@ -35,7 +35,7 @@
+ #include "vt-parser.h"
+ #include "resize.h"
+ 
+-static const ScreenModes empty_modes = {0, .mDECAWM=true, .mDECTCEM=true, .mDECARM=true};
++static const ScreenModes empty_modes = {0, .mDECAWM=true, .mDECTCEM=true, .mDECARM=true, .mALTERNATE_SCROLL=true};
+ 
+ #define CSI_REP_MAX_REPETITIONS 65535u
+ 
+@@ -1291,20 +1291,20 @@
+                 if (is_flag_codepoint(ch)) {
+                     if (lc.count == 1) {
+                         if (is_flag_pair(lc.chars[0], ch)) {
+-                            lc.chars[lc.count++] = ch; handle_variable_width_multicell_command(self, mcd, &lc);
++                            ensure_space_for_chars(&lc, lc.count + 1); lc.chars[lc.count++] = ch; handle_variable_width_multicell_command(self, mcd, &lc);
+                         } else {
+-                            handle_variable_width_multicell_command(self, mcd, &lc); lc.chars[lc.count++] = ch;
++                            handle_variable_width_multicell_command(self, mcd, &lc); ensure_space_for_chars(&lc, lc.count + 1); lc.chars[lc.count++] = ch;
+                         }
+                     } else {
+-                        handle_variable_width_multicell_command(self, mcd, &lc); lc.chars[lc.count++] = ch;
++                        handle_variable_width_multicell_command(self, mcd, &lc); ensure_space_for_chars(&lc, lc.count + 1); lc.chars[lc.count++] = ch;
+                     }
+                 } else {
+                     if (!lc.count) continue;
+-                    lc.chars[lc.count++] = ch;
++                    ensure_space_for_chars(&lc, lc.count + 1); lc.chars[lc.count++] = ch;
+                 }
+             } else {
+                 if (lc.count) handle_variable_width_multicell_command(self, mcd, &lc);
+-                lc.chars[lc.count++] = ch;
++                ensure_space_for_chars(&lc, lc.count + 1); lc.chars[lc.count++] = ch;
+             }
+         }
+         if (lc.count) handle_variable_width_multicell_command(self, mcd, &lc);
+@@ -1543,6 +1543,7 @@
+         SIMPLE_MODE(DECARM)
+         SIMPLE_MODE(BRACKETED_PASTE)
+         SIMPLE_MODE(FOCUS_TRACKING)
++        SIMPLE_MODE(ALTERNATE_SCROLL)
+         SIMPLE_MODE(COLOR_PREFERENCE_NOTIFICATION)
+         SIMPLE_MODE(HANDLE_TERMIOS_SIGNALS)
+         MOUSE_MODE(MOUSE_BUTTON_TRACKING, mouse_tracking_mode, BUTTON_MODE)
+@@ -1602,8 +1603,9 @@
+             log_error("Application escape mode is not supported, the extended keyboard protocol should be used instead");
+             break;
+         case PENDING_MODE << 5:
++            if (val == (self->paused_rendering.expires_at != 0)) break;
+             if (!screen_pause_rendering(self, val, 0)) {
+-                log_error("Pending mode change to already current mode (%d) requested. Either pending mode expired or there is an application bug.", val);
++                log_error("Failed to change synchronized output mode to %d", val);
+             }
+             break;
+         case INBAND_RESIZE_NOTIFICATION:
+@@ -1635,11 +1637,11 @@
+ }
+ 
+ void
+-screen_modify_other_keys(Screen *self, unsigned int val) {
++screen_modify_other_keys(Screen *self, unsigned int val, unsigned int val2) {
+     // Only report an error about modifyOtherKeys if the kitty keyboard
+     // protocol is not in effect and the application is trying to turn it on. There are some applications that try to enable both.
+     debug_input("modifyOtherKeys: %u\n", val);
+-    if (!screen_current_key_encoding_flags(self) && val) {
++    if (!screen_current_key_encoding_flags(self) && val == 4 && val2 != INT_MAX && val2 != 0) {
+         log_error("The application is trying to use xterm's modifyOtherKeys. This is superseded by the kitty keyboard protocol https://sw.kovidgoyal.net/kitty/keyboard-protocol. The application should be updated to use that.");
+     }
+ }
+@@ -2120,6 +2122,7 @@
+         SIMPLE_MODE(DECARM)
+         SIMPLE_MODE(BRACKETED_PASTE)
+         SIMPLE_MODE(FOCUS_TRACKING)
++        SIMPLE_MODE(ALTERNATE_SCROLL)
+         SIMPLE_MODE(COLOR_PREFERENCE_NOTIFICATION)
+         SIMPLE_MODE(INBAND_RESIZE_NOTIFICATION)
+         SIMPLE_MODE(DECCKM)
+@@ -2162,6 +2165,7 @@
+     copy_specific_mode(self, DECARM, src, dest);
+     copy_specific_mode(self, BRACKETED_PASTE, src, dest);
+     copy_specific_mode(self, FOCUS_TRACKING, src, dest);
++    copy_specific_mode(self, ALTERNATE_SCROLL, src, dest);
+     copy_specific_mode(self, COLOR_PREFERENCE_NOTIFICATION, src, dest);
+     copy_specific_mode(self, INBAND_RESIZE_NOTIFICATION, src, dest);
+     copy_specific_mode(self, DECCKM, src, dest);
+@@ -2723,6 +2727,7 @@
+         KNOWN_MODE(DECCKM);
+         KNOWN_MODE(BRACKETED_PASTE);
+         KNOWN_MODE(FOCUS_TRACKING);
++        KNOWN_MODE(ALTERNATE_SCROLL);
+         KNOWN_MODE(COLOR_PREFERENCE_NOTIFICATION);
+         KNOWN_MODE(INBAND_RESIZE_NOTIFICATION);
+ #undef KNOWN_MODE
+@@ -2784,6 +2789,11 @@
+             }
+             break;
+     }
++}
++
++void
++program_status_report(Screen *self, PyObject *data) {
++    CALLBACK("program_status_report", "O", data);
+ }
+ 
+ void
+--- a/kitty/screen.h
++++ b/kitty/screen.h
+@@ -16,7 +16,7 @@
+ 
+ typedef struct {
+     bool mLNM, mIRM, mDECTCEM, mDECSCNM, mDECOM, mDECAWM, mDECCOLM, mDECARM, mDECCKM, mCOLOR_PREFERENCE_NOTIFICATION,
+-         mBRACKETED_PASTE, mFOCUS_TRACKING, mDECSACE, mHANDLE_TERMIOS_SIGNALS, mINBAND_RESIZE_NOTIFICATION;
++         mBRACKETED_PASTE, mFOCUS_TRACKING, mDECSACE, mHANDLE_TERMIOS_SIGNALS, mINBAND_RESIZE_NOTIFICATION, mALTERNATE_SCROLL;
+     MouseTrackingMode mouse_tracking_mode;
+     MouseTrackingProtocol mouse_tracking_protocol;
+ } ScreenModes;
+@@ -231,6 +231,7 @@
+ void screen_report_color_stack(Screen *);
+ void screen_handle_kitty_dcs(Screen *, const char *callback_name, PyObject *cmd);
+ void set_title(Screen *self, PyObject*);
++void program_status_report(Screen *self, PyObject*);
+ void desktop_notify(Screen *self, unsigned int, PyObject*);
+ void set_icon(Screen *self, PyObject*);
+ void set_dynamic_color(Screen *self, unsigned int code, PyObject*);
+@@ -279,7 +280,7 @@
+ void screen_push_key_encoding_flags(Screen *self, uint32_t val);
+ void screen_pop_key_encoding_flags(Screen *self, uint32_t num);
+ uint8_t screen_current_key_encoding_flags(Screen *self);
+-void screen_modify_other_keys(Screen *self, unsigned int);
++void screen_modify_other_keys(Screen *self, unsigned int, unsigned int);
+ void screen_report_key_encoding_flags(Screen *self);
+ int screen_detect_url(Screen *screen, unsigned int x, unsigned int y);
+ int screen_cursor_at_a_shell_prompt(const Screen *);
+--- a/kitty/shm.py
++++ b/kitty/shm.py
+@@ -154,6 +154,16 @@
+     def fileno(self) -> int:
+         return self._fd
+ 
++    def verify_owner_and_mode(self) -> None:
++        """Ensure the shared memory object is owned by us and not accessible to
++        any other user. Must be called when opening objects whose name comes
++        from an untrusted source, as anyone can create an object of that name."""
++        if self.stats.st_uid != os.geteuid() or self.stats.st_gid != os.getegid():
++            raise ValueError(f'Incorrect owner on shared memory object: uid={self.stats.st_uid} gid={self.stats.st_gid}')
++        mode = stat.S_IMODE(self.stats.st_mode)
++        if mode != stat.S_IREAD | stat.S_IWRITE:
++            raise ValueError(f'Incorrect permissions on shared memory object: 0o{mode:03o}')
++
+     def __repr__(self) -> str:
+         return f'{self.__class__.__name__}({self.name!r}, size={self.size})'
+ 
+--- a/kitty/vt-parser.c
++++ b/kitty/vt-parser.c
+@@ -540,6 +540,10 @@
+             START_DISPATCH
+             DISPATCH_OSC_WITH_CODE(set_dynamic_color);
+             END_DISPATCH
++        case 7501:
++            START_DISPATCH
++            DISPATCH_OSC(program_status_report);
++            END_DISPATCH
+         case 21:
+             START_DISPATCH
+             DISPATCH_OSC_WITH_CODE(color_control);
+@@ -1330,7 +1334,7 @@
+                 break;
+             }
+             if (start_modifier == '>' && !end_modifier) {
+-                CALL_CSI_HANDLER1(screen_modify_other_keys, 0);
++                CALL_CSI_HANDLER2(screen_modify_other_keys, 0, INT_MAX);
+                 break;
+             }
+             /* fallthrough */
+--- a/kitty/window.py
++++ b/kitty/window.py
+@@ -57,6 +57,7 @@
+     add_timer,
+     add_window,
+     base64_decode,
++    base64_encode,
+     buffer_keys_in_window,
+     cell_size_for_window,
+     click_mouse_cmd_output,
+@@ -457,19 +458,17 @@
+     return replace_c0_codes_except_nl_space_tab(base64_decode(msg)).decode('utf-8', 'replace')
+ 
+ 
+-def transparent_background_color_control(cp: ColorProfile, responses: dict[str, str], index: int, key: str, sep: str, val: str) -> None:
++def transparent_background_color_control(cp: ColorProfile, responses: list[tuple[str, str]], index: int, key: str, sep: str, val: str) -> None:
++    # index is guaranteed to be a valid transparent background color index by the caller
+     if sep == '=':
+         if val == '?':
+-            if index > 8:
+-                responses[key] = '?'
++            c = cp.get_transparent_background_color(index - 1)
++            if c is None:
++                responses.append((key, ''))
+             else:
+-                c = cp.get_transparent_background_color(index - 1)
+-                if c is None:
+-                    responses[key] = ''
+-                else:
+-                    opacity = max(0, min(c.alpha / 255.0, 1))
+-                    responses[key] = f'rgb:{c.red:02x}/{c.green:02x}/{c.blue:02x}@{opacity:.4f}'
+-        elif index <= 8:
++                opacity = max(0, min(c.alpha / 255.0, 1))
++                responses.append((key, f'rgb:{c.red:02x}/{c.green:02x}/{c.blue:02x}@{opacity:.4f}'))
++        else:
+             col, _, o = val.partition('@')
+             try:
+                 opacity = float(o)
+@@ -478,31 +477,48 @@
+             c = to_color(col)
+             if c is not None:
+                 cp.set_transparent_background_color(index - 1, c, opacity)
+-    elif index <= 8:
++    else:
+         cp.set_transparent_background_color(index - 1)
+ 
+ 
+ def color_control(cp: ColorProfile, code: int, value: str | bytes | memoryview = '') -> str:
+     if isinstance(value, (bytes, memoryview)):
+         value = str(value, 'utf-8', 'replace')
+-    responses: dict[str, str] = {}
++    responses: list[tuple[str, str]] = []
+     # Only printable ASCII payload allowed as it is echoed back
+     value = re.sub(r'[^ -~]', '', value)
++
++    def mark_unknown(key: str) -> None:
++        # The field name is base64 encoded rather than echoed verbatim, otherwise
++        # this escape code could be abused to make the terminal emit arbitrary text
++        responses.append(('unknown', base64_encode(key).decode('ascii')))
++
+     for rec in value.split(';'):
+         key, sep, val = rec.partition('=')
++        if not key:  # ignore empty fields, e.g. from a stray or trailing semicolon
++            continue
+         if key.startswith('transparent_background_color'):
+-            index = int(key[len('transparent_background_color'):])
+-            transparent_background_color_control(cp, responses, index, key, sep, val)
++            # Only respond to canonically specified, in-range indices, any other index
++            # is an unknown field
++            suffix = key[len('transparent_background_color') :]
++            if suffix.isdigit() and 1 <= (index := int(suffix)) <= 8:
++                transparent_background_color_control(cp, responses, index, key, sep, val)
++            else:
++                mark_unknown(key)
+             continue
+         attr = {
+-            'foreground': 'default_fg', 'background': 'default_bg',
+-            'selection_background': 'highlight_bg', 'selection_foreground': 'highlight_fg',
+-            'cursor': 'cursor_color', 'cursor_text': 'cursor_text_color',
++            'foreground': 'default_fg',
++            'background': 'default_bg',
++            'selection_background': 'highlight_bg',
++            'selection_foreground': 'highlight_fg',
++            'cursor': 'cursor_color',
++            'cursor_text': 'cursor_text_color',
+             'visual_bell': 'visual_bell_color',
+         }.get(key, '')
+-        colnum = -1
+-        with suppress(Exception):
+-            colnum = int(key)
++        colnum = int(key) if key.isdigit() else -1
++        if not attr and not 0 <= colnum <= 255:
++            mark_unknown(key)
++            continue
+ 
+         def serialize_color(c: Color | None) -> str:
+             return '' if c is None else f'rgb:{c.red:02x}/{c.green:02x}/{c.blue:02x}'
+@@ -511,13 +527,10 @@
+             if val == '?':
+                 if attr:
+                     c = getattr(cp, attr)
+-                    responses[key] = serialize_color(c)
++                    responses.append((key, serialize_color(c)))
+                 else:
+-                    if 0 <= colnum <= 255:
+-                        c = cp.as_color((colnum << 8) | 1)
+-                        responses[key] = serialize_color(c)
+-                    else:
+-                        responses[key] = '?'
++                    c = cp.as_color((colnum << 8) | 1)
++                    responses.append((key, serialize_color(c)))
+             else:
+                 if attr:
+                     if val:
+@@ -531,17 +544,21 @@
+                 else:
+                     if 0 <= colnum <= 255:
+                         val = val.partition('@')[0]
+-                        col = to_color(val)
+-                        if col is not None:
+-                            cp.set_color(colnum, color_as_int(col))
++                        if val:
++                            if (col := to_color(val)) is not None:
++                                cp.set_color(colnum, color_as_int(col))
++                        elif colnum > 15:
++                            cp.set_color(colnum, NULL_COLOR_VALUE)
++                        else:
++                            cp.reset_color(colnum)
+         else:
+             if attr:
+                 delattr(cp, attr)
+             else:
+                 if 0 <= colnum <= 255:
+-                    cp.set_color(colnum, get_options().color_table[colnum])
++                    cp.reset_color(colnum)
+     if responses:
+-        payload = ';'.join(f'{k}={v}' for k, v in responses.items())
++        payload = ';'.join(f'{k}={v}' for k, v in responses)
+         return f'{code};{payload}'
+     return ''
+ 
+@@ -675,6 +692,8 @@
+         self.geometry: WindowGeometry = WindowGeometry(0, 0, 0, 0, 0, 0)
+         self.needs_layout = True
+         self.is_visible_in_layout: bool = True
++        from .program_status import ProgramStatus
++        self.program_status = ProgramStatus()
+         self.child = child
+         cell_width, cell_height = cell_size_for_window(self.os_window_id)
+         opts = get_options()
+@@ -1263,6 +1282,20 @@
+         if self.override_title is None:
+             self.title_updated()
+ 
++    def program_status_report(self, raw_data: memoryview) -> None:
++        # OSC 7501 https://www.superlogical.com/rex/docs/build/program-status
++        from .program_status import InvalidReport
++
++        try:
++            reply, changed = self.program_status.handle_escape_code(raw_data)
++        except InvalidReport as e:
++            log_error(f'Ignoring invalid OSC 7501 program status report: {e}')
++            return
++        if reply:
++            self.screen.send_escape_code_to_child(ESC_OSC, reply)
++        if changed:
++            self.title_updated()
++
+     def icon_changed(self, new_icon: memoryview) -> None:
+         pass  # TODO: Implement this
+ 
+@@ -1426,11 +1459,12 @@
+         get_boss().handle_remote_cmd(cmd, self)
+ 
+     def handle_remote_echo(self, msg: memoryview) -> None:
++        # This is used by the ssh kitten to flush garbage from the tty on exit
+         data = base64_decode(msg)
+-        # ensure we are not writing any control char back as this can lead to command injection on shell prompts
+-        # Any bytes outside the printable ASCII range are removed.
+-        data = re.sub(rb'[^ -~]', b'', data)
+-        self.write_to_child(data)
++        if data.isdigit():
++            self.write_to_child(data)
++        else:
++            log_error(f'Invalid echo message received from client: {data!r}')
+ 
+     def handle_remote_ssh(self, msg: memoryview) -> None:
+         from kittens.ssh.utils import get_ssh_data
+@@ -1500,33 +1534,64 @@
+ 
+     def handle_remote_askpass(self, msgb: memoryview) -> None:
+         from .shm import SharedMemory
+-        msg = str(msgb, 'utf-8')
+-        with SharedMemory(name=msg, readonly=True) as shm:
++
++        name = str(msgb, 'utf-8')
++        try:
++            shm = SharedMemory(name=name)
++        except OSError as err:
++            log_error(f'Ignoring ask request as opening its shared memory object failed with error: {err}')
++            return
++        try:
++            # The askpass client polls its own mapping for the answer, so
++            # unlinking the name here does not affect it and prevents anyone
++            # else from opening this object while we are using it.
++            shm.unlink()
++            shm.verify_owner_and_mode()
+             shm.seek(1)
+             data = json.loads(shm.read_data_with_size())
++            q = str(data['type'])
++            message: str = sanitize_control_codes(data['message'])
++            choices = tuple(map(sanitize_control_codes, data['choices'])) if q == 'choose' else ()
++        except Exception as err:
++            shm.close()
++            log_error(f'Ignoring invalid ask request with error: {err}')
++            return
+ 
+         def callback(ans: Any) -> None:
+-            data = json.dumps(ans)
+-            with SharedMemory(name=msg) as shm:
++            try:
+                 shm.seek(1)
+-                shm.write_data_with_size(data)
++                shm.write_data_with_size(json.dumps(ans))
+                 shm.flush()
+                 shm.seek(0)
+                 shm.write(b'\x01')
+-
+-        message: str = data['message']
+-        if data['type'] == 'confirm':
++            finally:
++                shm.close()
++
++        window_title = 'A program wants your input'
++        if q == 'confirm':
+             get_boss().confirm(
+-                message, callback, window=self, confirm_on_cancel=bool(data.get('confirm_on_cancel')),
+-                confirm_on_accept=bool(data.get('confirm_on_accept', True)))
+-        elif data['type'] == 'choose':
+-            get_boss().choose(
+-                message, callback, *data['choices'], window=self, default=data.get('default', ''))
+-        elif data['type'] == 'get_line':
++                message,
++                callback,
++                window=self,
++                confirm_on_cancel=bool(data.get('confirm_on_cancel')),
++                confirm_on_accept=bool(data.get('confirm_on_accept', True)),
++                title=window_title,
++            )
++        elif q == 'choose':
++            get_boss().choose(message, callback, *choices, window=self, default=data.get('default', ''), title=window_title)
++        elif q == 'get_line':
++            which = 'password' if data.get('is_password') else 'input'
++            message = f'\x1b[33mA program running in this window is asking for your {which}\x1b[m\n\n{message}'
+             get_boss().get_line(
+-                message, callback, window=self, is_password=bool(data.get('is_password')), prompt=data.get('prompt', '> '))
++                message,
++                callback,
++                window=self,
++                is_password=bool(data.get('is_password')),
++                prompt=sanitize_control_codes(data.get('prompt', '> ')),
++            )
+         else:
+-            log_error(f'Ignoring ask request with unknown type: {data["type"]}')
++            shm.close()
++            log_error(f'Ignoring ask request with unknown type: {q}')
+ 
+     def handle_remote_print(self, msg: memoryview) -> None:
+         text = process_remote_print(msg)
+--- a/kitty_tests/__init__.py
++++ b/kitty_tests/__init__.py
+@@ -61,6 +61,7 @@
+         self.num_of_resize_events += 1
+ 
+     def color_control(self, code, data) -> None:
++        from kitty.fast_data_types import base64_decode
+         from kitty.window import color_control
+         response = color_control(self.color_profile, code, data)
+         if response:
+@@ -71,7 +72,13 @@
+                 if ans is None:
+                     ans = x
+                 return ans
+-            parts = {x.partition('=')[0]:p(x.partition('=')[2]) for x in response.split(';')[1:]}
++            parts = {}
++            for x in response.split(';')[1:]:
++                k, _, v = x.partition('=')
++                if k == 'unknown':
++                    parts.setdefault('unknown', []).append(base64_decode(v).decode('ascii'))
++                else:
++                    parts[k] = p(v)
+             self.color_control_responses.append(parts)
+ 
+     def title_changed(self, data, is_base64=False) -> None:
+--- a/kitty_tests/screen.py
++++ b/kitty_tests/screen.py
+@@ -1452,14 +1452,16 @@
+             parse_bytes(s, b'\x1b]21;' + ';'.join(f'{k}={v}' for k, v in send.items()).encode() + b'\a')
+             self.ae(s.callbacks.color_control_responses, [expected] if expected else [])
+         q({k: '?' for k in 'background foreground 213 unknown'.split()}, {
+-            'background': defaults.background, 'foreground': defaults.foreground, '213': defaults.color213, 'unknown': '?'})
++            'background': defaults.background, 'foreground': defaults.foreground, '213': defaults.color213, 'unknown': ['unknown']})
++        q({'arbitrary text!': '?', ' 5 ': '?', 'transparent_background_colorX': '?'},
++          {'unknown': ['arbitrary text!', ' 5 ', 'transparent_background_colorX']})
+         q({'background':'aquamarine'})
+         q({'background':'?', 'selection_background': '?'}, {'background': color_names['aquamarine'], 'selection_background': s.color_profile.highlight_bg})
+         q({'selection_background': ''})
+         self.assertIsNone(s.color_profile.highlight_bg)
+         q({'selection_background': '?'}, {'selection_background': ''})
+         s.color_profile.reload_from_opts(defaults)
+-        q({'transparent_background_color9': '?'}, {'transparent_background_color9': '?'})
++        q({'transparent_background_color9': '?'}, {'unknown': ['transparent_background_color9']})
+         q({'transparent_background_color2': '?'}, {'transparent_background_color2': ''})
+         q({'transparent_background_color2': 'red@0.5'})
+         q({'transparent_background_color2': '?'}, {'transparent_background_color2': (Color(255, 0, 0), 126)})
+--- a/tools/config/api.go
++++ b/tools/config/api.go
+@@ -21,7 +21,7 @@
+ 	"kitty"
+ 	"kitty/tools/utils"
+ 
+-	"github.com/shirou/gopsutil/process"
++	"github.com/shirou/gopsutil/v4/process"
+ 	"golang.org/x/sys/unix"
+ )
+ 
+--- a/tools/tui/run.go
++++ b/tools/tui/run.go
+@@ -13,7 +13,7 @@
+ 	"strings"
+ 	"sync"
+ 
+-	"github.com/shirou/gopsutil/process"
++	"github.com/shirou/gopsutil/v4/process"
+ 	"golang.org/x/sys/unix"
+ 
+ 	"kitty/tools/config"
+--- a/tools/tui/tmux.go
++++ b/tools/tui/tmux.go
+@@ -13,7 +13,7 @@
+ 	"sync"
+ 	"time"
+ 
+-	"github.com/shirou/gopsutil/process"
++	"github.com/shirou/gopsutil/v4/process"
+ 	"golang.org/x/sys/unix"
+ 
+ 	"kitty/tools/utils"
+--- a/tools/utils/paths.go
++++ b/tools/utils/paths.go
+@@ -20,7 +20,7 @@
+ 	"syscall"
+ 	"unicode/utf8"
+ 
+-	"github.com/shirou/gopsutil/process"
++	"github.com/shirou/gopsutil/v4/process"
+ 	"golang.org/x/sys/unix"
+ )
+ 
+--- a/tools/utils/secrets/tokens.go
++++ b/tools/utils/secrets/tokens.go
+@@ -7,6 +7,7 @@
+ 	"encoding/base64"
+ 	"encoding/hex"
+ 	"fmt"
++	"math/big"
+ )
+ 
+ var _ = fmt.Print
+@@ -40,3 +41,45 @@
+ 	}
+ 	return base64.StdEncoding.EncodeToString(b), nil
+ }
++
++func encode_bytes(input []byte, alphabet string) string {
++	if len(input) == 0 {
++		return ""
++	}
++
++	base := big.NewInt(int64(len(alphabet)))
++	num := new(big.Int).SetBytes(input)
++	mod := new(big.Int)
++
++	var result []byte
++
++	// Convert the large integer into the custom base system
++	for num.Sign() > 0 {
++		num.DivMod(num, base, mod)
++		result = append(result, alphabet[mod.Int64()])
++	}
++
++	// Preserve leading zeros from the original byte slice
++	for _, b := range input {
++		if b != 0x00 {
++			break
++		}
++		result = append(result, alphabet[0])
++	}
++
++	// Reverse the result slice since DivMod extracts digits backward
++	for i, j := 0, len(result)-1; i < j; i, j = i+1, j-1 {
++		result[i], result[j] = result[j], result[i]
++	}
++
++	return string(result)
++}
++
++
++func TokenAlphabet(nbytes int, alphabet string) (string, error) {
++	b, err := TokenBytes(nbytes)
++	if err != nil {
++		return "", err
++	}
++	return encode_bytes(b, alphabet), nil
++}
+--- /dev/null
++++ b/kitty/program_status.py
+@@ -0,0 +1,307 @@
++#!/usr/bin/env python
++# License: GPLv3 Copyright: 2026, Kovid Goyal <kovid at kovidgoyal.net>
++
++# Program Status Protocol (OSC 7501), revision 0.4
++# https://www.superlogical.com/rex/docs/build/program-status
++
++import re
++from collections import OrderedDict
++from collections.abc import Callable, Iterable, Iterator
++from enum import Enum
++from itertools import count
++from typing import Any, NamedTuple
++
++from base64 import b64decode
++
++OSC_CODE = 7501
++# The whole sequence, ESC ] through ST, assuming the longer ST of ESC \
++MAX_SEQUENCE_BYTES = 4096
++MAX_BODY_BYTES = MAX_SEQUENCE_BYTES - len(f'\x1b]{OSC_CODE};') - len('\x1b\\')
++MAX_KEY_BYTES = 16
++MAX_MSG_ENCODED_BYTES, MAX_MSG_BYTES = 2732, 2048
++MAX_TITLE_ENCODED_BYTES, MAX_TITLE_BYTES = 256, 192
++MAX_APP_BYTES = 32
++MAX_ID_SEGMENT_BYTES, MAX_ID_DEPTH = 32, 8
++# The spec says 128 but that is an error as it is less than the maximum length allowed by the segment and depth limits
++MAX_ID_BYTES = MAX_ID_SEGMENT_BYTES * MAX_ID_DEPTH + MAX_ID_DEPTH - 1
++MAX_RECORDS = 256
++
++key_pat = re.compile(r'[a-z]+')
++value_pat = re.compile(r'[A-Za-z0-9_.,+/=-]*')
++name_pat = re.compile(r'[A-Za-z0-9_.+-]+')
++progress_pat = re.compile(r'[0-9]+')
++# C0, DEL and C1 control characters
++control_chars_pat = re.compile('[\x00-\x1f\x7f-\x9f]')
++WHITESPACE = ' \t\n\r\x0b\x0c'
++
++
++class State(Enum):
++    idle = 'idle'
++    working = 'working'
++    done = 'done'
++    blocked = 'blocked'
++    error = 'error'
++
++
++class Kind(Enum):
++    permission = 'permission'
++    question = 'question'
++    auth = 'auth'
++
++
++# Sent by kittens that run a program before handing the terminal to something
++# else, such as a shell for launch --hold, as kitty cannot otherwise see the
++# program exit. It is not a valid report so other terminals ignore it.
++PROCESS_EXITED = b'process-exited'
++# Reply to the feature detection query, lists the states and kinds we accept
++QUERY_REPLY = '{};?:states={}:kinds={}'.format(OSC_CODE, ','.join(s.value for s in State), ','.join(k.value for k in Kind))
++# Records that are dropped when the process exits or a new shell prompt begins
++TRANSIENT_STATES = frozenset((State.working, State.blocked, State.idle))
++# Records that remain until the user has seen them
++UNSEEN_STATES = frozenset((State.done, State.error))
++# Higher is more urgent, used to pick the record to show for several records
++URGENCY = {State.idle: 0, State.working: 1, State.done: 2, State.error: 3, State.blocked: 4}
++
++
++# Orders updates across all windows, to find the most recently updated record
++update_counter = count()
++
++
++class InvalidReport(ValueError):
++    pass
++
++
++class Record(NamedTuple):
++    id: str = ''  # empty for the root record
++    state: State = State.idle
++    kind: Kind | None = None
++    progress: int | None = None
++    app: str = ''
++    title: str = ''
++    msg: str = ''
++
++    def as_dict(self) -> dict[str, Any]:
++        return {
++            'id': self.id,
++            'state': self.state.value,
++            'kind': self.kind.value if self.kind else None,
++            'progress': self.progress,
++            'app': self.app,
++            'title': self.title,
++            'msg': self.msg,
++        }
++
++
++class Clear(NamedTuple):
++    id: str = ''  # empty means every record
++
++
++def is_valid_id(val: str) -> bool:
++    if len(val) > MAX_ID_BYTES:
++        return False
++    segments = val.split('/')
++    return len(segments) <= MAX_ID_DEPTH and all(len(s) <= MAX_ID_SEGMENT_BYTES and name_pat.fullmatch(s) for s in segments)
++
++
++def decode_text(encoded: str, max_encoded: int, max_decoded: int) -> str:
++    if len(encoded) > max_encoded:
++        raise InvalidReport('text value too long')
++    if len(encoded) % 4 == 1:
++        raise InvalidReport('invalid base64')
++    try:
++        raw = b64decode(encoded + '=' * (-len(encoded) % 4), validate=True)
++        text = raw.decode('utf-8')
++    except (ValueError, UnicodeDecodeError) as e:
++        raise InvalidReport(f'invalid text value: {e}') from e
++    if len(raw) > max_decoded:
++        raise InvalidReport('decoded text value too long')
++    if control_chars_pat.search(text) is not None:
++        raise InvalidReport('text value contains control characters')
++    return text
++
++
++def parse_report(raw: str | bytes | memoryview) -> Record | Clear:
++    "Parse the body of an OSC 7501 report, everything after 7501; Raises InvalidReport if the report must be discarded."
++    if isinstance(raw, str):
++        body, num_bytes = raw, len(raw.encode('utf-8'))
++    else:
++        # invalid UTF-8 is outside the value set and so is skipped, as a malformed pair
++        body, num_bytes = str(raw, 'utf-8', 'replace'), len(raw)
++    if num_bytes > MAX_BODY_BYTES:
++        raise InvalidReport('report too long')
++    values: dict[str, str] = {}
++    for pair in body.split(':'):
++        key, sep, val = pair.partition('=')
++        if not sep:
++            continue
++        key, val = key.strip(WHITESPACE), val.strip(WHITESPACE)
++        if len(key) > MAX_KEY_BYTES:
++            raise InvalidReport('key too long')
++        if not key_pat.fullmatch(key):
++            continue
++        if value_pat.fullmatch(val) is None:
++            if key == 'id':  # never fall back to the root record because of a malformed id
++                raise InvalidReport('invalid id')
++            continue
++        # Every value is checked against its limit, even if a later pair with the same key replaces it
++        if key == 'id' and not is_valid_id(val):
++            raise InvalidReport('invalid id')
++        if key == 'app' and len(val) > MAX_APP_BYTES:
++            raise InvalidReport('app too long')
++        if key == 'msg' and len(val) > MAX_MSG_ENCODED_BYTES:
++            raise InvalidReport('msg too long')
++        if key == 'title' and len(val) > MAX_TITLE_ENCODED_BYTES:
++            raise InvalidReport('title too long')
++        values[key] = val
++    title = decode_text(t, MAX_TITLE_ENCODED_BYTES, MAX_TITLE_BYTES) if (t := values.get('title')) else ''
++    msg = decode_text(m, MAX_MSG_ENCODED_BYTES, MAX_MSG_BYTES) if (m := values.get('msg')) else ''
++    rid = values.get('id', '')
++    state_name = values.get('state', '')
++    if state_name == 'clear':
++        return Clear(rid)
++    try:
++        state = State(state_name)
++    except ValueError:
++        # an unknown state discards the report so that a state added later never turns into something else
++        raise InvalidReport(f'unknown state: {state_name!r}') from None
++    kind = None
++    if state is State.blocked:
++        try:
++            kind = Kind(values.get('kind', ''))
++        except ValueError:
++            pass
++    progress = None
++    if state in (State.working, State.blocked) and progress_pat.fullmatch(p := values.get('progress', '')) and int(p) <= 100:
++        progress = int(p)
++    app = values.get('app', '')
++    if not name_pat.fullmatch(app):
++        app = ''
++    return Record(id=rid, state=state, kind=kind, progress=progress, app=app, title=title, msg=msg)
++
++
++def is_descendant_or_self(rid: str, ancestor: str) -> bool:
++    return not ancestor or rid == ancestor or rid.startswith(ancestor + '/')
++
++
++class ProgramStatus:
++    "The records reported by the programs running in one window"
++
++    def __init__(self) -> None:
++        # ordered from least to most recently changed
++        self.records: OrderedDict[str, Record] = OrderedDict()
++        # when each record last changed, used to break ties between equally urgent records
++        self.update_seq: dict[str, int] = {}
++        # when each record was last reported, even identically, used for eviction
++        self.report_seq: dict[str, int] = {}
++
++    def __bool__(self) -> bool:
++        return bool(self.records)
++
++    def __iter__(self) -> Iterator[Record]:
++        return iter(self.records.values())
++
++    def handle_escape_code(self, raw: memoryview | bytes) -> tuple[str, bool]:
++        """
++        Handle the body of an OSC 7501 escape code, returns the reply to send
++        to the child, empty if none, and whether the records changed. Raises
++        InvalidReport if the report must be discarded.
++        """
++        if raw == b'?':
++            return QUERY_REPLY, False
++        if raw == PROCESS_EXITED:
++            return '', self.on_process_exit_or_prompt()
++        return '', self.apply(parse_report(raw))
++
++    def apply(self, report: Record | Clear) -> bool:
++        "Apply a report, returns True if the records changed"
++        if isinstance(report, Clear):
++            return self.remove(lambda r: is_descendant_or_self(r.id, report.id))
++        seq = next(update_counter)
++        self.report_seq[report.id] = seq
++        if self.records.get(report.id) == report:
++            # an identical report changes nothing that is displayed, so only its recency for eviction is updated
++            return False
++        self.update_seq[report.id] = seq
++        self.records[report.id] = report
++        self.records.move_to_end(report.id)
++        while len(self.records) > MAX_RECORDS:  # drop the least recently reported record
++            self.discard(min(self.report_seq, key=self.report_seq.__getitem__))
++        return True
++
++    def discard(self, rid: str) -> None:
++        del self.records[rid], self.update_seq[rid], self.report_seq[rid]
++
++    def remove(self, predicate: Callable[[Record], bool]) -> bool:
++        remove = tuple(rid for rid, r in self.records.items() if predicate(r))
++        for rid in remove:
++            self.discard(rid)
++        return bool(remove)
++
++    def clear(self) -> bool:
++        ans = bool(self.records)
++        self.records.clear()
++        self.update_seq.clear()
++        self.report_seq.clear()
++        return ans
++
++    def on_process_exit_or_prompt(self) -> bool:
++        return self.remove(lambda r: r.state in TRANSIENT_STATES)
++
++    def on_seen_by_user(self) -> bool:
++        return self.remove(lambda r: r.state in UNSEEN_STATES)
++
++    def app_for(self, record: Record) -> str:
++        "The app of a record, inherited from its nearest ancestor if absent"
++        if record.app:
++            return record.app
++        rid = record.id
++        while rid:
++            rid = rid.rpartition('/')[0]
++            if (a := self.records.get(rid)) is not None and a.app:
++                return a.app
++        return ''
++
++    def rank(self, record: Record) -> tuple[int, int]:
++        "The sort key for display: the most urgent record wins, ties are broken by the most recently changed record"
++        return URGENCY[record.state], self.update_seq[record.id]
++
++    def most_urgent(self) -> Record | None:
++        return max(self.records.values(), key=self.rank, default=None)
++
++    def as_list(self) -> list[dict[str, Any]]:
++        ans = []
++        for r in self.records.values():
++            d = r.as_dict()
++            d['app'] = self.app_for(r)
++            ans.append(d)
++        return ans
++
++
++def status_symbol(record: Record | None, num: int = 1) -> str:
++    "A short indicator for use in tab and window titles, num is the number of windows in this state"
++    if record is None or record.state is State.idle:
++        return ''
++    if record.state is State.blocked:
++        sym = '\uf071'
++    elif record.state is State.error:
++        sym = '\ue654'
++    elif record.state is State.done:
++        sym = '\uf00c'
++    else:
++        sym = '\uf110'
++    ans = f'{sym}  {num} ' if num > 1 else f'{sym}  '
++    if record.state is State.working and record.progress is not None:
++        ans += f'{record.progress}% '
++    return ans
++
++
++def combined_status_symbol(statuses: Iterable[ProgramStatus]) -> str:
++    """
++    The most urgent status of several windows, along with the number of
++    windows in that status. Ties are broken by the most recently updated record.
++    """
++    items = [(r, ps.rank(r)) for ps in statuses if (r := ps.most_urgent()) is not None]
++    if not items:
++        return ''
++    best = max(items, key=lambda x: x[1])[0]
++    return status_symbol(best, sum(1 for r, _ in items if r.state is best.state))

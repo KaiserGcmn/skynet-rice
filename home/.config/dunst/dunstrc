@@ -1,62 +1,108 @@
 [global]
+    # SKYNET / REDLINE — hard-edged industrial notification panel.
     follow = keyboard
     origin = top-right
     offset = (16, 42)
-    width = 280
-    height = (0, 180)
+    width = 350
+    height = (0, 220)
     notification_limit = 4
+    enable_posix_regex = true
+    always_run_script = false
 
     font = JetBrains Mono 10
     format = "<b>%s</b>\n%b"
-    padding = 12
-    horizontal_padding = 14
-    frame_width = 2
-    frame_color = "#005577"
-    corner_radius = 8
+    padding = 14
+    horizontal_padding = 18
+    text_icon_padding = 16
+    frame_width = 1
+    frame_color = "#a42839"
+    corner_radius = 0
+    separator_height = 2
+    separator_color = frame
+    transparency = 0
 
-    enable_recursive_icon_lookup = true
-    icon_theme = breeze-dark, Adwaita
+    enable_recursive_icon_lookup = false
+    icon_theme = "breeze-dark, hicolor"
+    # Explicit Breeze Dark paths for the packaged Dunst icon loader.
+    icon_path = /usr/share/icons/breeze-dark/status/24:/usr/share/icons/breeze-dark/status/22:/usr/share/icons/breeze-dark/status/32:/usr/share/icons/breeze-dark/actions/24:/usr/share/icons/breeze-dark/actions/22:/usr/share/icons/breeze-dark/devices/32:/usr/share/icons/breeze-dark/apps/48:/usr/share/icons/breeze-dark/places/32:/usr/share/icons/breeze-dark/emblems/16:/usr/share/icons/hicolor/scalable/status:/usr/share/icons/hicolor/scalable/apps:/usr/share/pixmaps
     icon_position = left
     max_icon_size = 32
 
     progress_bar = true
-    progress_bar_height = 8
-    progress_bar_frame_width = 0
-    progress_bar_min_width = 220
-    progress_bar_max_width = 250
-    progress_bar_corner_radius = 4
+    progress_bar_height = 10
+    progress_bar_frame_width = 1
+    progress_bar_min_width = 310
+    progress_bar_max_width = 310
+    progress_bar_corner_radius = 0
 
     mouse_left_click = close_current
     mouse_right_click = close_all
 
 [urgency_low]
-    background = "#222222"
-    foreground = "#eeeeee"
-    highlight = "#55b8d0"
+    background = "#080a0e"
+    foreground = "#dde3ea"
+    highlight = "#ff4050"
     timeout = 3s
 
 [urgency_normal]
-    background = "#222222"
-    foreground = "#eeeeee"
-    highlight = "#55b8d0"
+    background = "#080a0e"
+    foreground = "#dde3ea"
+    highlight = "#ff4050"
     timeout = 5s
 
 [urgency_critical]
-    background = "#222222"
-    foreground = "#eeeeee"
-    frame_color = "#e06c75"
+    background = "#1c0b10"
+    foreground = "#fff1f2"
+    frame_color = "#ff4050"
+    highlight = "#ff4050"
     timeout = 0
 
-[volume]
-    appname = dwm-volume
-    format = "<b>%s</b>"
+[skynet-osd]
+    appname = "^dwm-(volume|brightness)$"
+    background = "#080a0e"
+    foreground = "#a9bbc5"
+    frame_color = "#e32636"
+    highlight = "#ff4050"
+    min_icon_size = 56
+    max_icon_size = 56
+    alignment = left
+    word_wrap = false
     history_ignore = yes
     set_transient = yes
-    timeout = 1500ms
+    timeout = 1700ms
+    override_dbus_timeout = 1700ms
 
-[brightness]
-    appname = dwm-brightness
-    format = "<b>%s</b>"
-    history_ignore = yes
-    set_transient = yes
-    timeout = 1500ms
+[skynet-volume]
+    appname = "^dwm-volume$"
+    stack_tag = "^dwm-volume$"
+    new_icon = ~/.config/dunst/icons/skynet/audio.svg
+    format = "<span foreground='#ff4050' font_desc='JetBrains Mono Bold 9' letter_spacing='1536'>SKYNET / AUDIO</span>\n<span foreground='#f5f0f0' font_desc='JetBrains Mono Bold 26'>%n<span font_desc='JetBrains Mono 12' foreground='#a9bbc5'> %%</span></span>\n<span foreground='#a9bbc5' font_desc='JetBrains Mono 8' letter_spacing='512'>OUTPUT // ACTIVE</span>"
+
+[skynet-volume-muted]
+    appname = "^dwm-volume$"
+    stack_tag = "^dwm-volume$"
+    summary = "^Volume muted$"
+    new_icon = ~/.config/dunst/icons/skynet/audio-muted.svg
+    format = "<span foreground='#ff4050' font_desc='JetBrains Mono Bold 9' letter_spacing='1536'>SKYNET / AUDIO</span>\n<span foreground='#ff4050' font_desc='JetBrains Mono Bold 24'>MUTED</span>\n<span foreground='#a9bbc5' font_desc='JetBrains Mono 8' letter_spacing='512'>OUTPUT // SILENCED</span>"
+
+[skynet-microphone]
+    appname = "^dwm-volume$"
+    stack_tag = "^dwm-microphone$"
+    new_icon = ~/.config/dunst/icons/skynet/microphone.svg
+    format = "<span foreground='#ff4050' font_desc='JetBrains Mono Bold 9' letter_spacing='1536'>SKYNET / INPUT</span>\n<span foreground='#f5f0f0' font_desc='JetBrains Mono Bold 24'>MIC ON</span>\n<span foreground='#a9bbc5' font_desc='JetBrains Mono 8' letter_spacing='512'>CHANNEL // OPEN</span>"
+
+[skynet-microphone-muted]
+    appname = "^dwm-volume$"
+    stack_tag = "^dwm-microphone$"
+    summary = "^Microphone muted$"
+    new_icon = ~/.config/dunst/icons/skynet/microphone-muted.svg
+    format = "<span foreground='#ff4050' font_desc='JetBrains Mono Bold 9' letter_spacing='1536'>SKYNET / INPUT</span>\n<span foreground='#ff4050' font_desc='JetBrains Mono Bold 24'>MIC OFF</span>\n<span foreground='#a9bbc5' font_desc='JetBrains Mono 8' letter_spacing='512'>CHANNEL // LOCKED</span>"
+
+[skynet-brightness]
+    appname = "^dwm-brightness$"
+    stack_tag = "^dwm-brightness$"
+    new_icon = ~/.config/dunst/icons/skynet/brightness.svg
+    format = "<span foreground='#ff4050' font_desc='JetBrains Mono Bold 9' letter_spacing='1536'>SKYNET / OPTICS</span>\n<span foreground='#f5f0f0' font_desc='JetBrains Mono Bold 26'>%n<span font_desc='JetBrains Mono 12' foreground='#a9bbc5'> %%</span></span>\n<span foreground='#a9bbc5' font_desc='JetBrains Mono 8' letter_spacing='512'>BACKLIGHT // PANEL-01</span>"
+
+[skynet-notification-sound]
+    script = "~/.config/dunst/notification-sound"

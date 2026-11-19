@@ -22,7 +22,7 @@ static void handle_response(struct response resp, int start_req) {
                 .request_type = request_type_start_session,
             };
             strncpy(req.body.request_start_session.cmd, gtkgreet->selected_command, 127);
-            handle_response(roundtrip(req), 1);
+            handle_response(roundtrip(&req), 1);
             break;
         }
         case response_type_auth_message: {
@@ -30,7 +30,7 @@ static void handle_response(struct response resp, int start_req) {
                 struct request req = {
                     .request_type = request_type_cancel_session,
                 };
-                roundtrip(req);
+                roundtrip(&req);
 
                 char *error = _("Unexpected auth question");
                 gtkgreet_setup_question(gtkgreet, QuestionTypeInitial, gtkgreet_get_initial_question(), error);
@@ -48,7 +48,7 @@ static void handle_response(struct response resp, int start_req) {
             struct request req = {
                 .request_type = request_type_cancel_session,
             };
-            roundtrip(req);
+            roundtrip(&req);
 
             char* error = NULL;
             if (resp.response_type == response_type_error &&
@@ -79,7 +79,7 @@ void action_answer_question(GtkWidget *widget, gpointer data) {
             if (ctx->input_field != NULL) {
                 strncpy(req.body.request_create_session.username, gtk_entry_get_text((GtkEntry*)ctx->input_field), 127);
             }
-            handle_response(roundtrip(req), 0);
+            handle_response(roundtrip(&req), 0);
             break;
         }
         case QuestionTypeSecret:
@@ -89,8 +89,9 @@ void action_answer_question(GtkWidget *widget, gpointer data) {
             };
             if (ctx->input_field != NULL) {
                 strncpy(req.body.request_post_auth_message_response.response, gtk_entry_get_text((GtkEntry*)ctx->input_field), 127);
+                gtk_entry_set_text(GTK_ENTRY(ctx->input_field), "");
             }
-            handle_response(roundtrip(req), 0);
+            handle_response(roundtrip(&req), 0);
             break;
         }
         case QuestionTypeInfo:
@@ -99,7 +100,7 @@ void action_answer_question(GtkWidget *widget, gpointer data) {
                 .request_type = request_type_post_auth_message_response,
             };
             req.body.request_post_auth_message_response.response[0] = '\0';
-            handle_response(roundtrip(req), 0);
+            handle_response(roundtrip(&req), 0);
             break;
         }
     }
@@ -109,7 +110,7 @@ void action_cancel_question(GtkWidget *widget, gpointer data) {
     struct request req = {
         .request_type = request_type_cancel_session,
     };
-    struct response resp = roundtrip(req);
+    struct response resp = roundtrip(&req);
     if (resp.response_type != response_type_success) {
         exit(1);
     }

@@ -10,9 +10,9 @@ start_once() {
     fi
 }
 
-# Restore the last wallpaper selected with feh.
-if [ -r "$HOME/.fehbg" ] && command -v feh >/dev/null 2>&1; then
-    sh "$HOME/.fehbg" || xsetroot -solid '#000000'
+# Restore the selected GIF, video or image without blocking desktop startup.
+if command -v skynet-wallpaper >/dev/null 2>&1; then
+    skynet-wallpaper start &
 else
     xsetroot -solid '#000000'
 fi
@@ -22,11 +22,16 @@ start_once snixembed /usr/local/bin/snixembed
 start_once slstatus /usr/local/bin/slstatus
 start_once nm-applet nm-applet
 start_once blueman-applet blueman-applet
-start_once spoofdpi spoofdpi --listen-addr 127.0.0.1:9080 --dns-mode https --dns-https-url https://1.1.1.1/dns-query --dns-qtype ipv4 --dns-cache --https-split-mode first-byte --no-tui --log-level error
+start_once spoofdpi /usr/local/bin/skynet-spoofdpi
 
 # Provide the standard desktop dialog for administrative authentication.
-task_agent=/usr/lib/x86_64-linux-gnu/libexec/polkit-kde-authentication-agent-1
-if [ -x "$task_agent" ] &&
-   ! pgrep -u "$task_uid" -f "^$task_agent([[:space:]]|$)" >/dev/null; then
+# Prefer the dwm-compatible agent; retain the distribution binary as fallback.
+task_agent=/usr/local/libexec/polkit-mate-authentication-agent-1
+if [ ! -x "$task_agent" ]; then
+    task_agent=/usr/libexec/polkit-mate-authentication-agent-1
+fi
+if [ ! -x "$task_agent" ]; then
+    printf '%s\n' 'dwm autostart: no executable MATE Polkit agent found' >&2
+elif ! pgrep -u "$task_uid" -f '^(/usr/local/libexec|/usr/libexec)/polkit-mate-authentication-agent-1([[:space:]]|$)' >/dev/null; then
     "$task_agent" &
 fi

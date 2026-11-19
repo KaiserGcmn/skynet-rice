@@ -31,6 +31,13 @@ def install(source, dest, executable=True):
     dest.chmod(0o755 if executable else 0o644)
 
 
+def runtime_files(runtime):
+    """Runtime files to stage, skipping Python bytecode caches."""
+    return [source for source in sorted(runtime.rglob('*'))
+            if source.is_file() and '__pycache__' not in source.parts
+            and source.suffix != '.pyc']
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--with-locker', action='store_true', help='Download hash-verified XSecureLock 1.9.0 and apply the saved patch')
@@ -82,9 +89,8 @@ def main():
             command += output(['pkg-config', '--libs', *libs]) + ['-lXext', '-lm']
         run(command, work, env)
         install(work / name, stage / 'usr/local/libexec' / name)
-    for source in sorted((ROOT / 'runtime').rglob('*')):
-        if source.is_file():
-            install(source, stage / source.relative_to(ROOT / 'runtime'))
+    for source in runtime_files(ROOT / 'runtime'):
+        install(source, stage / source.relative_to(ROOT / 'runtime'))
     # Only the desktop autostart enters staging. Debian services/boot/PAM stay in reference profiles.
     install(ROOT / 'profiles/debian/rootfs/etc/dwm/autostart.sh', stage / 'etc/dwm/autostart.sh')
     if args.with_locker:

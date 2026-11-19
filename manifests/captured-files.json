@@ -435,11 +435,6 @@
     "sha256": "71537e2599e36ecf67db34627b41e5f858dfa8dbf5e4845a722dbdae476d1b37"
   },
   {
-    "source": "/usr/local/src/xsecurelock-power/dwm-session-lock.py",
-    "destination": "sources/xsecurelock-power/dwm-session-lock.py",
-    "sha256": "14d04d722b2296a9138f88643629eb5a1e949bba83b7dbf1576158c78db3ce56"
-  },
-  {
     "source": "/usr/local/src/xsecurelock-power/local-changes.patch",
     "destination": "sources/xsecurelock-power/local-changes.patch",
     "sha256": "09b2b4c6dd1164968fa98d5be9ff912a94914d1ce6d55b401bcf7762c2cce3fc"
@@ -1110,16 +1105,6 @@
     "sha256": "3125d0f8f5dac1228101655eb167c07d5ad8b87e18592225e0389eda1cd95f00"
   },
   {
-    "source": "~/.config/fastfetch/debian-logo-original.txt",
-    "destination": "home/.config/fastfetch/debian-logo-original.txt",
-    "sha256": "73f387bfea12e527274b06fde4ed09e18462fd7bc487b2fe67aef2a68aecf8be"
-  },
-  {
-    "source": "~/.config/fastfetch/skynet-logo.txt",
-    "destination": "home/.config/fastfetch/skynet-logo.txt",
-    "sha256": "d116bc4815bdbe7c28a431a028452bb76e0fc63b4c69514f07fce07231eb22bc"
-  },
-  {
     "source": "~/.config/bottom/bottom.toml",
     "destination": "home/.config/bottom/bottom.toml",
     "sha256": "35386e462720a92ba4f13978e0d994718d3074b5b83b9ab90be02de7931fd80b"
@@ -1300,39 +1285,9 @@
     "sha256": "ad824ee8d36ea2917450a095ee7a681a23df864f1d1465af8dcc9fcf58c101c2"
   },
   {
-    "source": "~/.xprofile",
-    "destination": "profiles/debian/home/.xprofile",
-    "sha256": "02f4749ca394b6c70ad6212cc481c75204d329443007f62e88afc015d82d90b9"
-  },
-  {
-    "source": "~/.xsessionrc",
-    "destination": "profiles/debian/home/.xsessionrc",
-    "sha256": "56f150153457d0b244e153014003000ebcf4a84be9dac685078063438156cd2e"
-  },
-  {
     "source": "~/.config/powerdevilrc",
     "destination": "profiles/debian/home/.config/powerdevilrc",
     "sha256": "46d219d22b88ebfaecdb29f5cc99005b5a63566c89ec52d885fdd42d89b205b2"
-  },
-  {
-    "source": "~/.config/systemd/user/dwm-session-lock@.service",
-    "destination": "profiles/debian/home/.config/systemd/user/dwm-session-lock@.service",
-    "sha256": "fd83b100386a45640a5ae4fc6feb0781969972a9c071fb6bc7b13e6657587e12"
-  },
-  {
-    "source": "~/.config/systemd/user/audio-mute-state.service",
-    "destination": "profiles/debian/home/.config/systemd/user/audio-mute-state.service",
-    "sha256": "116d5c28d260c2ad2a3709a03e05a86de529b77624c6b89fefcafdcd1a48357b"
-  },
-  {
-    "source": "~/.config/systemd/user/audio-mute-state.service.d/20-safety.conf",
-    "destination": "profiles/debian/home/.config/systemd/user/audio-mute-state.service.d/20-safety.conf",
-    "sha256": "923ff37fa799389ebadda8c0b6e5ad154c7148f69d2b396c2087bd06cf2ee25c"
-  },
-  {
-    "source": "~/.config/systemd/user/expertbook-usbc-watch.service.d/20-safety.conf",
-    "destination": "profiles/debian/home/.config/systemd/user/expertbook-usbc-watch.service.d/20-safety.conf",
-    "sha256": "82fe189e2c2949e56207756a3dc219a766f987fc26476d6514c457d3503616db"
   },
   {
     "source": "/etc/dwm/config.h",
@@ -1390,69 +1345,9 @@
     "sha256": "198840838c3bf55f190620a84f73a0576cba1b876d1341f679cf6bdb2f2ff3f1"
   },
   {
-    "source": "/etc/udev/rules.d/91-expertbook-mute-led.rules",
-    "destination": "profiles/debian/rootfs/etc/udev/rules.d/91-expertbook-mute-led.rules",
-    "sha256": "dd31b84f6c4309a098db0ddf59988bad9e5f62d42313adedb26a81767600d047"
-  },
-  {
     "source": "/etc/X11/xorg.conf.d/30-touchpad.conf",
     "destination": "profiles/debian/rootfs/etc/X11/xorg.conf.d/30-touchpad.conf",
     "sha256": "a6051409a6f5a25a72fd935ebb9f07e7447be87315bf9606c5e116c3d54ec29f"
-  },
-  {
-    "source": "/etc/systemd/system/expertbook-mute-led.service",
-    "destination": "profiles/debian/rootfs/etc/systemd/system/expertbook-mute-led.service",
-    "sha256": "e936a4e040c1f840a17246c70a14a82332bdd8447250e81392eac9d73c06e270"
-  },
-  {
-    "source": "/etc/systemd/system/greetd.service.d/console.conf",
-    "destination": "profiles/debian/rootfs/etc/systemd/system/greetd.service.d/console.conf",
-    "sha256": "020934a00adf7736c40d0bf40e1d9dbf9a8b0418aabd08d67026b68d84a1d266"
-  },
-  {
-    "source": "/etc/systemd/system/apt-daily.service.d/20-low-impact.conf",
-    "destination": "profiles/debian/rootfs/etc/systemd/system/apt-daily.service.d/20-low-impact.conf",
-    "sha256": "48d78246c61e7c2bd1336474bf286c52c766e7c158a84836055c1ee1cdd743ba"
-  },
-  {
-    "source": "/etc/systemd/system/apt-daily-upgrade.service.d/20-low-impact.conf",
-    "destination": "profiles/debian/rootfs/etc/systemd/system/apt-daily-upgrade.service.d/20-low-impact.conf",
-    "sha256": "48d78246c61e7c2bd1336474bf286c52c766e7c158a84836055c1ee1cdd743ba"
-  },
-  {
-    "source": "/etc/systemd/system/nftables.service.d/20-preserve-other-tables.conf",
-    "destination": "profiles/debian/rootfs/etc/systemd/system/nftables.service.d/20-preserve-other-tables.conf",
-    "sha256": "3b2eb5c9b0dae3eba0e6fef70006d3e1e189365e506af028a4323f38874192c0"
-  },
-  {
-    "source": "/etc/systemd/system/smartmontools.service.d/options.conf",
-    "destination": "profiles/debian/rootfs/etc/systemd/system/smartmontools.service.d/options.conf",
-    "sha256": "4e6e34ed1531906c9d776f918731d9cc4ea0dac13ce662aed3e7b6520c872f4e"
-  },
-  {
-    "source": "/etc/systemd/user/expertbook-usbc-watch.service",
-    "destination": "profiles/debian/rootfs/etc/systemd/user/expertbook-usbc-watch.service",
-    "sha256": "8f676bd7fc77d9441ecb67c197bab46dbb6a4e6945d8592b4351e66293fafebb"
-  },
-  {
-    "source": "/etc/systemd/user/expertbook-usbc-watch.timer",
-    "destination": "profiles/debian/rootfs/etc/systemd/user/expertbook-usbc-watch.timer",
-    "sha256": "1b47be76b50519094868d00ca35ab4b655de0b3b34a7117bff2421fbdfec1157"
-  },
-  {
-    "source": "/etc/systemd/logind.conf.d/80-power-button-lock.conf",
-    "destination": "profiles/debian/rootfs/etc/systemd/logind.conf.d/80-power-button-lock.conf",
-    "sha256": "e37ac99a96cbcdbd48d72da7482d55c67f2fe95f1c1d8d487af30a7b09a70e33"
-  },
-  {
-    "source": "/etc/systemd/logind.conf.d/85-no-sleep.conf",
-    "destination": "profiles/debian/rootfs/etc/systemd/logind.conf.d/85-no-sleep.conf",
-    "sha256": "e628149384cc66000fd45107fed87e196ef59ec3c7c81db9b04ed1ed7ff089da"
-  },
-  {
-    "source": "/etc/systemd/sleep.conf.d/80-no-sleep.conf",
-    "destination": "profiles/debian/rootfs/etc/systemd/sleep.conf.d/80-no-sleep.conf",
-    "sha256": "201ae7e7fdeb50e61ae2fa86dfd6cbd6144cda46ea556d642d70efcceb47aeee"
   },
   {
     "source": "/etc/nftables.conf",
@@ -1513,6 +1408,16 @@
     "source": "/usr/local/bin/expertbook-usbc-watch",
     "destination": "runtime/usr/local/bin/expertbook-usbc-watch",
     "sha256": "5d4ba9e4722a721b0ebe8323cc659130ad74b3c4ee5b0eb394aa0f8df1b86fa9"
+  },
+  {
+    "source": "/usr/local/libexec/expertbook-ucsi-recover",
+    "destination": "runtime/usr/local/libexec/expertbook-ucsi-recover",
+    "sha256": "8191ab04077ea6e36fdca3cf09cfcc0cbe7ec214aae96e9409926565af7e1d85"
+  },
+  {
+    "source": "/etc/init.d/expertbook-ucsi-recover",
+    "destination": "runtime/etc/init.d/expertbook-ucsi-recover",
+    "sha256": "29567fbcbd84eb0846dcf5301e1572d88a7354cf3a12b75693f173bf1073305c"
   },
   {
     "source": "/usr/local/sbin/audit-debian-boot",
@@ -1603,11 +1508,6 @@
     "source": "/usr/local/libexec/audio-mute-state",
     "destination": "runtime/usr/local/libexec/audio-mute-state",
     "sha256": "9eead37680d4417cf104bd0e14fe9f142b2cdb31ae135c4ca943ef98d66e5f8e"
-  },
-  {
-    "source": "/usr/local/libexec/dwm-session-lock",
-    "destination": "runtime/usr/local/libexec/dwm-session-lock",
-    "sha256": "14d04d722b2296a9138f88643629eb5a1e949bba83b7dbf1576158c78db3ce56"
   },
   {
     "source": "/usr/local/libexec/expertbook-mute-led",

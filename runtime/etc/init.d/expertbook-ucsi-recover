@@ -1,0 +1,31 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          expertbook-ucsi-recover
+# Required-Start:    $local_fs $syslog
+# Required-Stop:
+# Should-Start:      eudev udev
+# Default-Start:     2 3 4 5
+# Default-Stop:
+# Short-Description: Re-probe USB-C (UCSI) once if its ports failed to register
+# Description:       Starts a detached one-shot check so boot is never delayed.
+#                    ucsi_acpi is reloaded only when it is bound without ports.
+### END INIT INFO
+
+HELPER=/usr/local/libexec/expertbook-ucsi-recover
+[ -x "$HELPER" ] || exit 0
+
+case "$1" in
+	start)
+		setsid "$HELPER" --boot </dev/null >/dev/null 2>&1 &
+		;;
+	stop|restart|force-reload)
+		;;
+	status)
+		"$HELPER" --status
+		;;
+	*)
+		echo "Usage: $0 {start|stop|status}" >&2
+		exit 3
+		;;
+esac
+exit 0

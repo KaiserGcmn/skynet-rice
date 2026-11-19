@@ -1,1 +1,0 @@
-ACTION=="add", SUBSYSTEM=="sound", KERNEL=="controlC*", ATTRS{id}=="sofhdadsp", TAG+="systemd", ENV{SYSTEMD_WANTS}+="expertbook-mute-led.service"

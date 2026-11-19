@@ -1,0 +1,11 @@
+--- a/usr/sbin/zramswap
++++ b/usr/sbin/zramswap
+@@ -11,7 +11,7 @@
+ readonly CONFIG="/etc/default/zramswap"
+ readonly SWAP_DEV="/dev/zram0"
+ 
+-if command -v logger >/dev/null; then
++if command -v logger >/dev/null && [ -S /dev/log ]; then
+     function elog {
+         logger -s "Error: $*"
+         exit 1

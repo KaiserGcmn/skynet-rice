@@ -1,45 +1,59 @@
-# Hedef: Devuan + OpenRC
+# Devuan + SysVinit/elogind
 
-Kullanıcı OpenRC seçti. Yeni kurulumda systemd servisleri kurulmayacak.
-Kaynak sistem Debian 13 + systemd olduğu için mevcut servis dosyaları,
-daha sonra davranışlarını karşılaştırabilmek üzere `profiles/debian/` altında
-korunuyor. Kullanıcı ayarlarını geri yükleme komutu bu dizini okumaz.
+28 Ekim 2026'da çalışan sistem doğrulandı: PID 1 `init`, `/usr/sbin/init`
+dosyasının sahibi `sysvinit-core`, çalışma seviyesi 2. `sysv-rc` ve
+`initscripts` kurulu; `systemd`, `systemd-sysv` ve OpenRC kurulu değil.
+Init yöneticisi değiştirilmedi.
 
-| Bileşen | OpenRC geçişi |
+## Etkin başlangıç düzeni
+
+| Bileşen | Çalışan düzen |
 | --- | --- |
-| DWM, dmenu, slstatus, Kitty, Dunst, GTK, duvar kâğıdı | systemd'ye doğrudan bağlı değil; yeni sistemde derle/kur |
-| `/etc/dwm/autostart.sh` | Aynı başlangıç betiği kullanılabilir; isteğe bağlı program yollarını doğrula |
-| Greetd | Dağıtımın OpenRC hizmetini tercih et; yoksa `profiles/openrc` taslağını gözden geçir |
-| Özel greetd güç düğmeleri | C kaynaklarında `systemctl` çağrısı var; elogind D-Bus güç isteklerine uyarlama bekliyor |
-| DWM kilit dinleyicisi | logind D-Bus arayüzünü dinliyor, fakat kilidi `systemd-run` ile başlatıyor; kullanıcı oturumunda gözetim/kilit yaşam döngüsü uyarlanmalı |
-| XSecureLock F11/F12 | Yamada `systemctl` kullanılıyor; elogind/polkit ve inhibitor davranışı korunarak uyarlanmalı |
-| Güç tuşu/kapak | Mevcut logind ayarları referans; elogind karşılıkları kilit dinleyicisi çalıştıktan sonra uygulanmalı |
-| Ses durumunu saklama | Python aracı bağımsız; PipeWire hazır olduktan sonra `restore`, oturum kapanmadan önce `save` çalıştırılmalı |
-| PipeWire/WirePlumber | Devuan'ın kullanıcı oturumu başlangıcı/gözetimi sağlanmalı; root hizmeti olarak başlatılmaz |
-| ExpertBook mute LED | OpenRC oneshot taslağı eklendi; modül yükleme ve ALSA sıralaması cihazda doğrulanmalı |
-| USB-C izleyicisi | Oturumda 2 dakika sonra, ardından 5 dakikada bir çağrılmalı; cron'a root olarak bağlanmaz |
-| TLP, nftables, AppArmor, SMART | Dağıtımın OpenRC hizmetleri kullanılır; systemd hardening/drop-in sözdizimi taşınmaz |
-| Otomatik güvenlik güncellemeleri | Devuan'ın güvenlik deposu ve cron/OpenRC düzenine göre yeniden ayarlanmalı; Debian kaynak adı kopyalanmaz |
-| VMD, DKMS, GRUB | Init yöneticisinden ayrı olarak yeni çekirdek/disk üzerinde doğrulanır |
+| greetd, D-Bus, elogind, NetworkManager, Bluetooth, TLP | `/etc/init.d/` betikleri ve `/etc/rc*.d/` bağlantıları |
+| ZRAM ve parlaklık kaydı | SysV `skynet-zram` ve `brightness` hizmetleri |
+| USB-C UCSI açılış kurtarması | SysV `expertbook-ucsi-recover` → `/usr/local/libexec/expertbook-ucsi-recover --boot` |
+| DWM, ses sunucusu ve oturum yardımcıları | `/usr/local/bin/skynet-session` |
+| Otomatik kilit | Oturumun yönettiği `xss-lock` → `/usr/local/libexec/skynet-lock` |
+| Bar, bildirimler, duvar kâğıdı ve tepsi uygulamaları | `/etc/dwm/autostart.sh` |
+| Hoparlör/mikrofon durum kaydı | `skynet-session-extras` → `audio-mute-state watch --restore` |
+| Kilit/giriş güç işlemleri | Kurulu Devuan uyarlamasında elogind/loginctl |
 
-## OpenRC taslaklarının durumu
+Elogind'in login1 D-Bus arayüzü ve `loginctl` kullanımı, systemd'nin init
+yöneticisi olarak çalıştığı anlamına gelmez. Güncel canlı denetim ve test
+sınırları [COMPATIBILITY.md](COMPATIBILITY.md) ve [MAINTENANCE.md](MAINTENANCE.md)
+içindedir.
 
-`profiles/openrc/etc/init.d/` içindeki iki hizmet **taslaktır**: yalnızca kabuk
-sözdizimi ve bağımlılık mantığı gözden geçirildi. Gerçek OpenRC üzerinde
-başlatma/durdurma testi yapılmadı; varsayılan geri yükleme/derleme bunları kurmaz.
-Greetd taslağı kilit dinleyicisi, güç tuşu veya PipeWire'ı tek başına çözmez.
-Oturum güvenliğini doğrulamadan mevcut giriş yöneticisini devre dışı bırakma.
+## Kaldırılan eski başlangıç dosyaları
 
-Devuan üzerinde ilk kontrol sırası: doğru init ve elogind/PAM oturumu, D-Bus,
-Xorg+DWM, ses, manuel kilitleme/kilit açma, güç tuşu/kapak, giriş ekranı,
-son olarak cihaz sürücüleri ve GRUB. `systemctl` adlı sahte bir uyumluluk
-betiği ekleyerek davranışları taklit etmek bu geçişin parçası değildir.
+Kullanıcının isteğiyle 28 Ekim 2026'da 22 kullanılmayan dosya kaldırıldı:
 
-Kaynaklar:
+- İki OpenRC hizmet taslağı ve boşalan profil dizini.
+- Eski Debian profilindeki 15 systemd hizmet, timer, drop-in ve güç ayarı.
+- Bu hizmetleri başlatan eski `.xprofile`, `.xsessionrc` ve mute LED udev kuralı.
+- `dwm-session-lock` yardımcısının runtime ve kaynak kopyaları.
 
-- [Devuan Debian Trixie → Excalibur rehberi](https://www.devuan.org/os/documentation/install-guides/excalibur/trixie-to-excalibur.html)
-- [OpenRC hizmet yazma rehberi](https://github.com/OpenRC/openrc/blob/master/service-script-guide.md)
-- [elogind kaynak ve belgeleri](https://github.com/elogind/elogind)
+Eski kilit yardımcısı çalışan sisteme kurulu değildi. Silinen dosyalar kullanıcı
+ayarlarını geri yükleme kapsamına girmiyordu; runtime kopyasının kaldırılması,
+sonraki derlemelerde de bu eski yardımcının çıktıya taşınmasını önler.
+İlgili kayıtlar `captured-files.json` içinden çıkarıldı ve `SHA256SUMS` yenilendi.
 
-Bu kaynaklar geçişteki bileşenleri açıklıyor; bu özel rice'ın OpenRC üzerinde
-çalıştığına dair test sonucu oluşturmuyor.
+Temizlik depo içeriğiyle sınırlıdır. Kurulu paketlerin `/usr/lib/systemd` veya
+`/etc/systemd` altındaki uyumluluk dosyaları ve paket yöneticisinin bağlantıları
+elle silinmedi. SysVinit bu unit dosyalarını çalıştırmaz. Paketler, elogind,
+udev, PAM, çalışan servisler ve kilit/giriş ayarları değiştirilmedi.
+
+## Derleme ve tarihsel kayıtların sınırı
+
+Depodaki temel gtkgreet kaynağı ve XSecureLock yaması hâlâ Debian'a ait
+`systemctl` güç çağrılarını içerir. Bunlar kullanılan bileşenlerin kaynaklarıdır;
+servis arşivi temizliği sırasında silinmedi veya yeniden derlenmedi.
+Bu makinedeki kurulu sürüm, `~/.local/share/skynet-rice/devuan-source.patch`
+yerel uyarlamasıyla `loginctl` kullanır. `scripts/build.py` bu yamayı otomatik
+uygulamaz; çıktıyı çalışan sistemin üzerine topluca kopyalama. Yerel katman ve
+yeniden derleme sınırları [LOGO.md](LOGO.md) ve [RESTORE.md](RESTORE.md) içindedir.
+
+`profiles/debian/` altındaki kalan donanım/masaüstü ayarları,
+`reference/debian-maintenance/` betikleri ve APT envanterleri tarihsel kayıtlardır;
+güncel SysVinit kurulum listesi değildir. Geçmiş doğrulama notları, o tarihteki
+testleri anlatmaya devam eder. Bu temizlik yeni bir init geçişi veya yeniden
+başlatma testi değildir.

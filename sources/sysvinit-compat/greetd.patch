@@ -1,0 +1,17 @@
+--- a/etc/init.d/greetd
++++ b/etc/init.d/greetd
+@@ -59,8 +59,13 @@
+     log_end_msg 0
+   ;;
+ 
++  status)
++    status_of_proc "$DAEMON" greetd
++    exit $?
++  ;;
++
+   *)
+-    echo "Usage: /etc/init.d/greetd {start|stop|restart|force-reload}"
++    echo "Usage: /etc/init.d/greetd {start|stop|restart|force-reload|status}"
+     exit 1
+     ;;
+ esac

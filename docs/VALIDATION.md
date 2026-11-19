@@ -24,6 +24,11 @@ OpenRC dosyaları taslak durumunda; gerçek Devuan/OpenRC oturum, servis,
 kilit ve güç davranışı henüz doğrulanmadı. DKMS/VMD kaynakları bu yayın
 hazırlığında tekrar derlenmedi; önceki sistemin kaynak kaydı olarak alındı.
 
+> **Güncel durum:** OpenRC kullanılmıyor. Sistem Devuan 6 + SysVinit/elogind
+> ile çalışır; OpenRC taslakları 28 Ekim 2026'da depodan kaldırıldı. Yukarıdaki
+> OpenRC notları yalnız o tarihteki yayın öncesi kontrolü anlatır. Güncel
+> başlangıç düzeni için [DEVUAN.md](DEVUAN.md).
+
 
 ## Native login/lock logo — 23 October 2026
 

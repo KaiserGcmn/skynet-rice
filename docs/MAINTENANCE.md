@@ -294,3 +294,13 @@ Kurtarma yolu, bir sonraki hatalı açılışta syslog'dan doğrulanmalıdır.
 - Depo: `scripts/build.py` artık `runtime/` altındaki `__pycache__`/`.pyc`
   dosyalarını staging'e kopyalamaz (`tests/test_build_runtime.py`);
   çalışma ağacındaki bytecode önbellekleri silindi.
+
+### ModemManager kaldırıldı
+
+Kaynak denetiminde WWAN/modem donanımı bulunmadı (USB/PCI modem ve
+`/sys/class/wwan` yok). Kullanıcı onayıyla `modemmanager` paketi purge
+edildi; D-Bus etkinleştirme dosyası paketle kalktığından çalışan süreç de
+durduruldu. NetworkManager, Wi-Fi ve bağlantı durumu (`connected:full`)
+etkilenmedi. Arduino kartlarının seri portları artık modem yoklamasına
+uğramaz. NFS istemcisi (`rpcbind`, `nfs-common`) kullanıcı tercihiyle korundu.
+Geri dönüş: `sudo apt install modemmanager`.

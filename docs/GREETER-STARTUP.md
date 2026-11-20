@@ -67,3 +67,36 @@ Kayıtlar tamamen boş değildir: Xwayland keycode/keysym uyarıları, wlroots
 xdg_surface uyarısı ve greeter kapanışında Broken pipe mesajı bulunur.
 Bu açılışta grafik login'i engellememişlerdir. Tek başarılı boot, aralıklı
 sorunun her koşulda tamamen ortadan kalktığının kanıtı sayılmaz.
+
+## Yanlış şifrede grafik giriş ekranının kapanması — 20 Kasım 2026
+
+Belirti: 12 Kasım'dan beri her yanlış şifreden yaklaşık 3 saniye sonra
+(pam_faildelay) grafik ekran kapanıp yeniden açılıyordu. Syslog'da 9 kez
+`Graphical attempt N/3 exited with status 1` var ve her birinin 2,5–3,8 saniye
+öncesinde bir `pam_unix(greetd:auth): authentication failure` bulunuyor. Üst
+üste üç yanlış şifre, launcher'ın yeniden deneme hakkını bitirip tuigreet
+yedeğine düşürüyordu. Yeniden açılan ekranda şifreyi kullanıcı adı alanına
+yazmak da `user unknown` kaydına yol açıyordu.
+
+Neden: makinedeki `devuan-source.patch` içindeki asenkron gtkgreet katmanı
+(12 Kasım 11:56), doğrulama hatasından sonra `cancel_session` gönderiyor ve
+`RESET_REPLY` başarılı değilse `exit(1)` yapıyordu. greetd 0.10.3, başarısız
+doğrulamada oturumu zaten kendisi iptal ediyor. Bu yüzden ikinci iptal
+`unable to send message: Connection refused (os error 111)` hatası döndürüyor.
+Bu, VT'ye dokunmayan ayrı bir gerçek greetd örneğiyle (`vt = "none"`,
+`-s /run/greetd-test.sock`) doğrulandı; ardından gelen `create_session`
+normal çalışıyor.
+
+Düzeltme (yerel yama): hata mesajı taşıyan sıfırlamalarda iptal yanıtı yok
+sayılıyor; yalnız kullanıcının bastığı İptal başarısız olursa eski `exit(1)`
+korunuyor. Yamanın önceki hali ve önceki ikili
+`~/.local/share/dwm-theme-backups/before-greeter-fix-20261120/` altında.
+Doğrulama:
+- Sahte greetd ve iç içe cage ile aynı senaryoda eski ikili `exit 1` ile
+  kapanıyor; yeni ikili "Login failed" gösterip ikinci denemeyi kabul ediyor.
+- Gerçek izole greetd ile eski ikilide `greeter exited without creating a
+  session` kaydı çıkıyor; yenisi ayakta kalıyor.
+
+Tam yama, depo HEAD'ine ve çalışma ağacına `--fuzz=0` ile uygulanıyor.
+Kurulu ikili (20 Kasım 14:47) SHA-256:
+`a1c2075791cbeb9861074e60ce065b1d37eb5cb35ab3d4c08275408b0c5d5503`.

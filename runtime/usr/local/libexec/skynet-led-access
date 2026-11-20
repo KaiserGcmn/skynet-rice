@@ -1,0 +1,14 @@
+#!/usr/bin/python3
+"""Give the audio group access to only the two mute indicator brightness files."""
+from pathlib import Path
+import grp,os
+
+if Path('/sys/class/dmi/id/product_name').read_text().strip()!='ASUS EXPERTBOOK B3405CCA':
+    raise SystemExit(0)
+gid=grp.getgrnam('audio').gr_gid
+for name in ('platform::mute','platform::micmute'):
+    led=Path('/sys/class/leds')/name
+    if not led.exists(): continue
+    (led/'trigger').write_text('none\n')
+    os.chown(led/'brightness',0,gid)
+    os.chmod(led/'brightness',0o660)

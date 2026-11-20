@@ -34,7 +34,7 @@ class ClockPanelTest(unittest.TestCase):
         source.write_text(DRIVER)
         cls.binary = Path(cls.work.name) / 'clock'
         flags = subprocess.check_output(['pkg-config', '--cflags', '--libs',
-                                         'xft', 'x11', 'fontconfig'], text=True)
+                                         'xft', 'xrender', 'x11', 'fontconfig'], text=True)
         dwm = ROOT / 'sources/dwm'
         subprocess.run(['cc', '-std=c99', '-D_DEFAULT_SOURCE', '-D_XOPEN_SOURCE=700',
                         '-DVERSION="test"', '-Wno-deprecated-declarations',

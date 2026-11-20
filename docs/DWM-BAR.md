@@ -314,3 +314,45 @@ altı mevcut saat testi geçti. Özel Xephyr ekranında 12:30, 03:30, 09:00,
 Standart sudo doğrulamasıyla atomik kuruldu; kurulu SHA-256 doğrulandı:
 `29cad7b645ef2607b3b3bf6965b774007cedfb1af2c88dc923d9e2d906b9499f`. Çalışan oturum kapatılmadı; değişiklik sonraki
 DWM girişinde etkinleşir. Bu işe ait geçici dosyalar temizlendi.
+
+## CPU rampası ve köşeli pil — 20 Kasım 2026
+
+Bar düzeni, tuşlar, veri kaynakları ve slstatus biçimi değişmeden iki gösterge
+Skynet HUD diline alındı. İkisi de etiket → grafik → değer sırasını ve
+fastfetch panelindeki `////` eğimini paylaşır.
+
+- **CPU:** Altıgen kadran yerine soldan sağa yükselen 10 eğik çubuk. Her
+  çubuk başlamış bir %10 dilimidir (`%1` → 1, `%47` → 5, `%91` → 10);
+  `%0` ve geçersiz veri tamamen sönüktür. Dolu kısmın uç çubuğu daha açık
+  kırmızıdır (`#FF6A76`). Yüzde sağ uca taşındı; %85 ve üstü yine kırmızıdır.
+- **Pil:** Yuvarlak gövde yerine durum çerçevesindeki gibi sol üst ve sağ alt
+  köşesi kırpık bir gövde; içinde 5 eğik hücre. Hücreler en yakın %20'ye
+  yuvarlanır, ancak sıfırdan büyük her şarj en az bir hücre gösterir. Son
+  dolu hücre daha açıktır; kritik seviyede (≤%10, adaptörsüz) hücre ve
+  gövde düz kırmızı kalır. `BAT`/`AC`/`CHG` etiketi, şimşek/fiş/uyarı
+  rozetleri ve tam sayı yüzde korunur.
+
+Eğik çubuk ve hücrelerin yan kenarları XRender ile kenar yumuşatmalı
+(antialiased) çizilir; alt ve üst kenarlar tam piksele oturur. İlk sürüm
+Xlib `XFillPolygon` kullanıyordu ve 3 px genişlikte basamaklı/pikselli
+görünüyordu. Bu nedenle `config.mk` artık `-lXrender` ile bağlar
+(`libxrender-dev` zaten derleme bağımlılıklarında). Pil gövdesinin kırpık
+köşeleri, durum çerçevesiyle aynı 1 px Xlib çizgisidir.
+
+Durum alanı yaklaşık 24 px genişledi; pencere başlığı buna göre kısalır.
+Hesaplama `cpulitbars()` ve `batterylitcells()` fonksiyonlarındadır ve
+`tests/test_cpu_panel.py` ile sınanır.
+
+Derleme önceki yöntemle yapıldı (depo kaynağı + yerel `devuan-source.patch`
+DWM bölümü). Değişiklikten önce aynı yöntemle derlenen ikilinin kurulu
+DWM ile byte düzeyinde eşleştiği doğrulandı. Kenar yumuşatmalı sürümün SHA-256'sı
+`b81c6aae15791df2818e5b212c56201511b280675db3da00e931d34efb4ea14c` idi;
+aynı gün yapılan kod temizliğinden sonra kurulu DWM:
+`f90c8817101d6e3d1244c421d2d78a4068aac10be28528f598b705f26a838d0a`
+(durum alanı piksel düzeyinde aynı; bkz. `docs/MAINTENANCE.md`).
+Önceki ikili ve `dwm.c`:
+`~/.local/share/dwm-theme-backups/before-bar-ramp-20261120T103005Z/`.
+Yeni görünüm **sonraki DWM oturum açılışında** etkinleşir. Önizleme,
+autostart'sız Xephyr oturumunda kurulu ikiliyle alındı.
+
+![CPU rampası ve köşeli pil](screenshots/dwm-bar-ramp.png)

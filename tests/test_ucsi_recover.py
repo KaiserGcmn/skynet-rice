@@ -41,6 +41,11 @@ class Machine:
         self.calls = []
         self.ports_after_reload = 2
         self.fail = None
+        self.events = []          # (uptime, callable) applied as fake time passes
+        self.call_times = []
+
+    def now(self):
+        return float((self.proc / 'uptime').read_text().split()[0])
 
     def set_uptime(self, value):
         (self.proc / 'uptime').write_text(f'{value:.2f} 1.00\n')
@@ -56,19 +61,28 @@ class Machine:
             (self.sys / 'class/typec' / f'port{index}').symlink_to(target)
 
     def sleep(self, seconds):
-        uptime = float((self.proc / 'uptime').read_text().split()[0])
-        self.set_uptime(uptime + seconds)
+        self.set_uptime(self.now() + seconds)
+        if self.now() > 100000:
+            raise AssertionError('helper kept waiting with nothing left to happen')
+        while self.events and self.events[0][0] <= self.now():
+            self.events.pop(0)[1]()
 
     def modprobe(self, *args):
         self.calls.append(args)
+        self.call_times.append(self.now())
         if self.fail == args:
             return False, 'FATAL: Module ucsi_acpi is in use.'
         if args == (ucsi.MODULE,):
-            self.set_ports(self.ports_after_reload)
+            after = self.ports_after_reload
+            if isinstance(after, list):
+                after = after.pop(0)
+            elif callable(after):
+                after = after()
+            self.set_ports(after)
         return True, ''
 
 
-class UcsiRecoverTest(unittest.TestCase):
+class RecoverCase(unittest.TestCase):
     def setUp(self):
         directory = tempfile.TemporaryDirectory(prefix='skynet-ucsi-test-')
         self.addCleanup(directory.cleanup)
@@ -81,6 +95,8 @@ class UcsiRecoverTest(unittest.TestCase):
                             run=machine.modprobe, sleep=machine.sleep,
                             say=self.messages.append)
 
+
+class UcsiRecoverTest(RecoverCase):
     def test_healthy_boot_never_touches_the_driver(self):
         machine = Machine(self.root, ports=2)
         self.assertEqual(self.run_recover(machine), 'ready')
@@ -91,12 +107,13 @@ class UcsiRecoverTest(unittest.TestCase):
         self.assertEqual(self.run_recover(machine), 'recovered')
         self.assertEqual(machine.calls, [('-r', 'ucsi_acpi'), ('ucsi_acpi',)])
 
-    def test_only_one_attempt_per_boot(self):
+    def test_attempts_are_bounded_per_boot(self):
         machine = Machine(self.root, ports=0)
         machine.ports_after_reload = 0
         self.assertEqual(self.run_recover(machine), 'not_recovered')
+        self.assertEqual(len(machine.calls), 2 * ucsi.MAX_ATTEMPTS)
         self.assertEqual(self.run_recover(machine), 'already_checked')
-        self.assertEqual(len(machine.calls), 2)
+        self.assertEqual(len(machine.calls), 2 * ucsi.MAX_ATTEMPTS)
 
     def test_new_boot_id_allows_a_new_check(self):
         machine = Machine(self.root, ports=0)
@@ -145,6 +162,93 @@ class UcsiRecoverTest(unittest.TestCase):
         before = sorted(str(path) for path in self.root.rglob('*'))
         self.assertEqual(ucsi.observe(machine.sys), ('ready', ['port0', 'port1']))
         self.assertEqual(sorted(str(path) for path in self.root.rglob('*')), before)
+
+
+class PausedReloadTest(RecoverCase):
+    """Only reloads that leave the module unloaded for a few seconds worked."""
+
+    def pauses(self, machine):
+        times = machine.call_times
+        return [round(times[i + 1] - times[i], 2) for i in range(0, len(times), 2)]
+
+    def test_module_stays_unloaded_before_loading(self):
+        machine = Machine(self.root, ports=0)
+        self.assertEqual(self.run_recover(machine), 'recovered')
+        self.assertEqual(machine.calls, [('-r', 'ucsi_acpi'), ('ucsi_acpi',)])
+        self.assertGreaterEqual(self.pauses(machine)[0], 3.0)
+
+    def test_pauses_grow_and_attempts_are_spaced(self):
+        machine = Machine(self.root, ports=0)
+        machine.ports_after_reload = 0
+        self.assertEqual(self.run_recover(machine), 'not_recovered')
+        self.assertEqual(self.pauses(machine), list(ucsi.UNLOAD_PAUSES))
+        loads, unloads = machine.call_times[1::2], machine.call_times[2::2]
+        for load, next_unload in zip(loads, unloads):
+            self.assertGreaterEqual(next_unload - load, ucsi.ATTEMPT_GAP)
+
+    def test_second_attempt_can_recover(self):
+        machine = Machine(self.root, ports=0)
+        machine.ports_after_reload = [0, 2]
+        self.assertEqual(self.run_recover(machine), 'recovered')
+        self.assertEqual(len(machine.calls), 4)
+        self.assertIn('reload 2/3', ' '.join(self.messages))
+
+    def test_ports_arriving_between_attempts_end_the_check(self):
+        machine = Machine(self.root, ports=0)
+        machine.ports_after_reload = 0
+        machine.events = [(120.0, lambda: machine.set_ports(2))]
+        self.assertEqual(self.run_recover(machine), 'ready_later')
+        self.assertEqual(len(machine.calls), 2)
+
+    def test_manual_unbind_between_attempts_is_respected(self):
+        machine = Machine(self.root, ports=0)
+        machine.ports_after_reload = 0
+        machine.events = [(120.0, lambda: (machine.device / 'driver').unlink())]
+        self.assertEqual(self.run_recover(machine), 'left_unchanged')
+        self.assertEqual(len(machine.calls), 2)
+
+
+class LateInitFailureTest(RecoverCase):
+    """Ports appear mid-init and are removed ~20 s later when init times out."""
+
+    def vanish_after(self, machine, seconds):
+        def reload():
+            machine.events.append((machine.now() + seconds, lambda: machine.set_ports(0)))
+            machine.events.sort(key=lambda event: event[0])
+            return 2
+        return reload
+
+    def test_ports_that_vanish_are_not_reported_as_recovered(self):
+        machine = Machine(self.root, ports=0)
+        machine.ports_after_reload = self.vanish_after(machine, 20)
+        self.assertEqual(self.run_recover(machine), 'not_recovered')
+        self.assertIn('removed again', ' '.join(self.messages))
+        self.assertFalse(any('recovered (' in message for message in self.messages))
+
+    def test_vanishing_ports_get_another_attempt(self):
+        machine = Machine(self.root, ports=0)
+        attempts = []
+
+        def reload():
+            attempts.append(machine.now())
+            if len(attempts) == 1:
+                return self.vanish_after(machine, 20)()
+            return 2
+        machine.ports_after_reload = reload
+        self.assertEqual(self.run_recover(machine), 'recovered')
+        self.assertEqual(len(attempts), 2)
+
+    def test_transient_ports_during_boot_do_not_skip_recovery(self):
+        machine = Machine(self.root, ports=2, up=8.0)
+        machine.events = [(19.0, lambda: machine.set_ports(0))]
+        self.assertEqual(self.run_recover(machine), 'recovered')
+        self.assertEqual(machine.calls, [('-r', 'ucsi_acpi'), ('ucsi_acpi',)])
+
+    def test_stable_ports_need_the_full_window(self):
+        machine = Machine(self.root, ports=0)
+        start = machine.now()
+        self.assertEqual(self.run_recover(machine), 'recovered')
+        self.assertGreaterEqual(machine.now() - start, ucsi.STABLE_SECONDS)
 
 
 class InitScriptTest(unittest.TestCase):

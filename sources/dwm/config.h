@@ -18,7 +18,6 @@ static const int showsystray        = 1;     /* 0 means no systray */
 /* SKYNET console: restrained red accents, steel labels and a continuous rail. */
 static const char *fonts[]          = { "JetBrains Mono:style=SemiBold:size=13" };
 static const char dmenufont[]       = "JetBrains Mono:style=ExtraBold:size=13";
-static const char col_gray1[]       = "#070809";
 static const char col_gray2[]       = "#252C36";
 static const char col_gray3[]       = "#D3D6DA";
 static const char col_gray4[]       = "#FFFFFF";
@@ -39,11 +38,8 @@ static const char *colors[][3]      = {
 	[SchemeStatusCPUMeter] = { "#FF4050", "#28242A", "#69222E" },
 	[SchemeStatusBAT]  = { "#DDE3EA", "#080A0E", "#69222E" },
 	[SchemeStatusBATMeter] = { "#FF4050", "#080A0E", "#FF4050" },
-	[SchemeStatusBATCell1] = { "#FF4050", "#080A0E", "#FF4050" },
-	[SchemeStatusBATCell2] = { "#FA4B5D", "#080A0E", "#FF4050" },
-	[SchemeStatusBATCell3] = { "#FF6A76", "#080A0E", "#FF4050" },
-	[SchemeStatusBATCell4] = { "#FF9098", "#080A0E", "#FF4050" },
-	[SchemeStatusBATCell5] = { "#FFB3B9", "#080A0E", "#FF4050" },
+	/* leading lit CPU bar / battery cell */
+	[SchemeStatusAccent] = { "#FF6A76", "#080A0E", "#FF4050" },
 	[SchemeStatusDate] = { "#A9BBC5", "#080A0E", "#69222E" },
 	[SchemeStatusTime] = { "#ECEEF1", "#080A0E", "#A42839" },
 };
@@ -58,7 +54,6 @@ static const Rule rules[] = {
 	 */
 	/* class      instance    title       tags mask     isfloating   monitor */
 	{ "Gimp",     NULL,       NULL,       0,            1,           -1 },
-	{ "floorp",    NULL,       NULL,       0,            0,           -1 },
 };
 
 /* layout(s) */

@@ -7,12 +7,12 @@ Mevcut dwm 6.8 kaynaklarının, systray ve autostart yamalarının sistem geneli
 - Aktif pencere çerçevesi: `#FF1B22`, 4 piksel.
 - Pasif pencere çerçevesi: çelik grisi `#393D42`.
 - Üst çubukta 12 piksel toplam dikey boşluk ve 3 piksel kırmızı alt çizgi.
-- dmenu seçimi: `#D21920`, beyaz yazı.
+- dmenu: ortalanmış SKYNET paneli (`docs/CYBERPUNK-STYLE.md`); seçim `#AE2031`, beyaz yazı.
 - Font: JetBrains Mono ExtraBold, 13.
 - Etiketler: `[01]`–`[06]`; mevcut etiket sayısı ve kısayollar korunur.
 - Yerleşim göstergeleri: `[TILE]`, `[FLOAT]`, `[MONO:n]`.
 - Durum çubuğu: aralarında 3 piksel siyah boşluk olan dört dikdörtgen panel.
-- CPU: çelik çerçeve içinde kırmızı, köşesi kırpılmış CPU plakası; yüke göre dolan 10 eğik kırmızı çentik ve sabit genişlikte metal beyazı yüzde. Her çentik %10'luk bir aralığı temsil eder; %0 tamamen boştur, eksik/geçersiz veri `--%` olur. slstatus ölçümü ve saniyelik güncelleme değişmez. BAT: siyaha yakın zeminde kırmızı dikdörtgen çerçeve, kırmızı pil hücreleri ve metal grisi bilgi.
+- CPU ve pil göstergeleri: `docs/DWM-BAR.md` ("CPU rampası ve köşeli pil") güncel tanımdır; aşağıdaki pil maddeleri eski metin düzenini anlatır.
 - DATE: çelik grisi zemin; TIME: dolu kırmızı zeminde beyaz, saniyeli saat.
 - Pil: `▰▰▰▰▱` hücreleri köşeli parantez içinde; hizalı tam sayı yüzde ve `↑` şarj / `↓` deşarj / `•` dolu veya takılı göstergesi. Örnek: `BAT [▰▰▰▰▱]   76% ↑`. Dolu hücreler soldan sağa giderek açılan beş kırmızı tondadır: `#FF3B38`, `#FF5956`, `#FF7774`, `#FF9592`, `#FFB3B0`. Boş hücrelerin konturları ve parantezler mevcut kırmızıda, BAT etiketi/yüzde/ok metal grisinde kalır. Okunamayan değerler `--` olarak gösterilir.
 - Yüzde doğrudan `/sys/class/power_supply/BAT0/capacity` içindeki tam sayı değerinden alınır. Küsürat hesabı kaldırılmıştır; geçerli aralık %0–100'dür.

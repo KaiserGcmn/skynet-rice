@@ -293,3 +293,43 @@
 #  [[row.child]]
 #    type="proc"
 #    default=true
+
+# SKYNET diagnostics: black/red/steel styling matching the kitty palette.
+# Red marks live signals and selection; steel carries labels and secondary series.
+[styles.cpu]
+all_entry_color = "#ff4050"
+avg_entry_color = "#ff6875"
+cpu_core_colors = ["#ff4050", "#a9bbc5", "#ff6875", "#6c8ea8", "#c94f7c", "#dde3ea", "#a42839", "#93b4cc"]
+
+[styles.memory]
+ram_color = "#ff4050"
+cache_color = "#a9bbc5"
+swap_color = "#e8a33d"
+arc_color = "#4fc3cf"
+gpu_colors = ["#ff6875", "#93b4cc", "#c94f7c", "#6c8ea8", "#a42839", "#dde3ea"]
+
+[styles.network]
+rx_color = "#ff4050"
+tx_color = "#a9bbc5"
+rx_total_color = "#ff6875"
+tx_total_color = "#dde3ea"
+
+[styles.battery]
+high_battery_color = "#dde3ea"
+medium_battery_color = "#e8a33d"
+low_battery_color = "#ff4050"
+
+[styles.tables]
+headers = {color = "#ff4050", bold = true}
+
+[styles.graphs]
+graph_color = "#3a414b"
+legend_text = {color = "#a9bbc5"}
+
+[styles.widgets]
+border_color = "#69222e"
+selected_border_color = "#ff4050"
+widget_title = {color = "#dde3ea", bold = true}
+text = {color = "#a9bbc5"}
+selected_text = {color = "#ffffff", bg_color = "#ae2031"}
+disabled_text = {color = "#5c6670"}

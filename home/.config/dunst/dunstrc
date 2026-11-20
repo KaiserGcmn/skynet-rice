@@ -10,7 +10,8 @@
     always_run_script = false
 
     font = JetBrains Mono 10
-    format = "<b>%s</b>\n%b"
+    # SKYNET HUD: letter-spaced red source line, white summary, steel body.
+    format = "<span foreground='#ff4050' font_desc='JetBrains Mono Bold 8' letter_spacing='1536'>SKYNET // %a</span>\n<b>%s</b>\n<span foreground='#a9bbc5'>%b</span>"
     padding = 14
     horizontal_padding = 18
     text_icon_padding = 16
@@ -42,6 +43,8 @@
     background = "#080a0e"
     foreground = "#dde3ea"
     highlight = "#ff4050"
+    frame_color = "#3a2028"
+    format = "<span foreground='#a42839' font_desc='JetBrains Mono Bold 8' letter_spacing='1536'>SKYNET // LOG · %a</span>\n<b>%s</b>\n<span foreground='#a9bbc5'>%b</span>"
     timeout = 3s
 
 [urgency_normal]
@@ -55,6 +58,7 @@
     foreground = "#fff1f2"
     frame_color = "#ff4050"
     highlight = "#ff4050"
+    format = "<span foreground='#ff4050' font_desc='JetBrains Mono Bold 8' letter_spacing='1536'>▲ SKYNET // THREAT ALERT</span>\n<span foreground='#a9bbc5' font_desc='JetBrains Mono 8' letter_spacing='512'>SOURCE // %a</span>\n<b>%s</b>\n%b"
     timeout = 0
 
 [skynet-osd]

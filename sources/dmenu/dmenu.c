@@ -25,7 +25,8 @@
 #define TEXTW(X)              (drw_fontset_getwidth(drw, (X)) + lrpad)
 
 /* enums */
-enum { SchemeNorm, SchemeSel, SchemeOut, SchemeLast }; /* color schemes */
+enum { SchemeNorm, SchemeSel, SchemeOut, SchemeFrame, SchemeAccent, SchemeDim,
+       SchemeLast }; /* color schemes */
 
 struct item {
 	char *text;
@@ -38,6 +39,8 @@ static char *embed;
 static int bh, mw, mh;
 static int inputw = 0, promptw;
 static int lrpad; /* sum of left and right padding */
+static int hud; /* SKYNET: centred, framed vertical panel */
+static unsigned int nitems;
 static size_t cursor;
 static struct item *items = NULL;
 static struct item *matches, *matchend;
@@ -142,12 +145,90 @@ drawitem(struct item *item, int x, int y, int w)
 	return drw_text(drw, x, y, w, bh, lrpad / 2, item->text, 0);
 }
 
+/* SKYNET: thin dim frame with bright corner brackets, as on the lock screen */
+static void
+drawframe(void)
+{
+	int l = MIN(hudcorner, (unsigned int)MIN(mw, mh) / 2), t = 2;
+
+	drw_setscheme(drw, scheme[SchemeFrame]);
+	drw_rect(drw, 0, 0, mw, mh, 0, 0);
+	drw_setscheme(drw, scheme[SchemeAccent]);
+	drw_rect(drw, 0, 0, l, t, 1, 0);
+	drw_rect(drw, 0, 0, t, l, 1, 0);
+	drw_rect(drw, mw - l, 0, l, t, 1, 0);
+	drw_rect(drw, mw - t, 0, t, l, 1, 0);
+	drw_rect(drw, 0, mh - t, l, t, 1, 0);
+	drw_rect(drw, 0, mh - l, t, l, 1, 0);
+	drw_rect(drw, mw - l, mh - t, l, t, 1, 0);
+	drw_rect(drw, mw - t, mh - l, t, l, 1, 0);
+}
+
+static void
+drawhud(void)
+{
+	struct item *item;
+	unsigned int curpos, nmatch = 0;
+	int x = hudpad, y = hudpad, w, iw = mw - 2 * (int)hudpad;
+	char count[32];
+
+	drw_setscheme(drw, scheme[SchemeNorm]);
+	drw_rect(drw, 0, 0, mw, mh, 1, 1);
+
+	/* input row: prompt badge followed by the query */
+	if (prompt && *prompt) {
+		drw_setscheme(drw, scheme[SchemeSel]);
+		x = drw_text(drw, x, y, promptw, bh, lrpad / 2, prompt, 0);
+	}
+	w = hudpad + iw - x;
+	drw_setscheme(drw, scheme[SchemeNorm]);
+	drw_text(drw, x, y, w, bh, lrpad / 2, text, 0);
+	curpos = TEXTW(text) - TEXTW(&text[cursor]);
+	if ((curpos += lrpad / 2 - 1) < (unsigned int)w) {
+		drw_setscheme(drw, scheme[SchemeAccent]);
+		drw_rect(drw, x + curpos, y + 4, 2, bh - 8, 1, 0);
+	}
+	y += bh + hudgap / 2;
+	drw_setscheme(drw, scheme[SchemeFrame]);
+	drw_rect(drw, hudpad, y, iw, 1, 1, 0);
+
+	/* candidates; the selected row carries a bright red edge */
+	y += hudgap / 2;
+	for (item = curr; item != next; item = item->right, y += bh) {
+		drawitem(item, hudpad, y, iw);
+		if (item == sel) {
+			drw_setscheme(drw, scheme[SchemeAccent]);
+			drw_rect(drw, hudpad, y, 3, bh, 1, 0);
+		}
+	}
+
+	/* footer: label and match counter */
+	y = mh - hudpad - bh;
+	drw_setscheme(drw, scheme[SchemeFrame]);
+	drw_rect(drw, hudpad, y - hudgap / 2, iw, 1, 1, 0);
+	for (item = matches; item; item = item->right)
+		nmatch++;
+	snprintf(count, sizeof(count), "%u / %u", nmatch, nitems);
+	w = TEXTW(count);
+	drw_setscheme(drw, scheme[SchemeDim]);
+	drw_text(drw, hudpad, y, iw - w, bh, lrpad / 2, hudlabel, 0);
+	drw_text(drw, hudpad + iw - w, y, w, bh, lrpad / 2, count, 0);
+
+	drawframe();
+	drw_map(drw, win, 0, 0, mw, mh);
+}
+
 static void
 drawmenu(void)
 {
 	unsigned int curpos;
 	struct item *item;
 	int x = 0, y = 0, w;
+
+	if (hud) {
+		drawhud();
+		return;
+	}
 
 	drw_setscheme(drw, scheme[SchemeNorm]);
 	drw_rect(drw, 0, 0, mw, mh, 1, 1);
@@ -569,6 +650,7 @@ readstdin(void)
 	free(line);
 	if (items)
 		items[i].text = NULL;
+	nitems = i;
 	lines = MIN(lines, i);
 }
 
@@ -625,7 +707,10 @@ setup(void)
 	Window pw;
 	int a, di, n, area = 0;
 #endif
-	/* init appearance */
+	/* init appearance; HUD-only schemes share the normal background */
+	colors[SchemeFrame][ColBg] = colors[SchemeNorm][ColBg];
+	colors[SchemeAccent][ColBg] = colors[SchemeNorm][ColBg];
+	colors[SchemeDim][ColBg] = colors[SchemeNorm][ColBg];
 	for (j = 0; j < SchemeLast; j++)
 		scheme[j] = drw_scm_create(drw, colors[j], 2);
 
@@ -633,9 +718,16 @@ setup(void)
 	utf8 = XInternAtom(dpy, "UTF8_STRING", False);
 
 	/* calculate menu geometry */
-	bh = drw->fonts->h + 2;
 	lines = MAX(lines, 0);
-	mh = (lines + 1) * bh;
+	hud = centered && lines > 0 && parentwin == root;
+	if (hud) {
+		bh = drw->fonts->h + rowpad;
+		/* padding, input row, rail, list, rail, footer, padding */
+		mh = 2 * hudpad + (lines + 2) * bh + 2 * hudgap;
+	} else {
+		bh = drw->fonts->h + 2;
+		mh = (lines + 1) * bh;
+	}
 #ifdef XINERAMA
 	i = 0;
 	if (parentwin == root && (info = XineramaQueryScreens(dpy, &n))) {
@@ -667,9 +759,15 @@ setup(void)
 		if (i >= n)
 			i = 0;
 
-		x = info[i].x_org;
-		y = info[i].y_org + (topbar ? 0 : info[i].height - mh);
-		mw = info[i].width;
+		if (hud) {
+			mw = MIN((int)hudwidth, info[i].width);
+			x = info[i].x_org + (info[i].width - mw) / 2;
+			y = info[i].y_org + MAX(0, (info[i].height - mh) / 2);
+		} else {
+			x = info[i].x_org;
+			y = info[i].y_org + (topbar ? 0 : info[i].height - mh);
+			mw = info[i].width;
+		}
 		XFree(info);
 	} else
 #endif
@@ -677,9 +775,15 @@ setup(void)
 		if (!XGetWindowAttributes(dpy, parentwin, &wa))
 			die("could not get embedding window attributes: 0x%lx",
 			    parentwin);
-		x = 0;
-		y = topbar ? 0 : wa.height - mh;
-		mw = wa.width;
+		if (hud) {
+			mw = MIN((int)hudwidth, wa.width);
+			x = (wa.width - mw) / 2;
+			y = MAX(0, (wa.height - mh) / 2);
+		} else {
+			x = 0;
+			y = topbar ? 0 : wa.height - mh;
+			mw = wa.width;
+		}
 	}
 	promptw = (prompt && *prompt) ? TEXTW(prompt) - lrpad / 4 : 0;
 	inputw = mw / 3; /* input width: ~33% of monitor width */
@@ -719,7 +823,7 @@ setup(void)
 static void
 usage(void)
 {
-	die("usage: dmenu [-bfiv] [-l lines] [-p prompt] [-fn font] [-m monitor]\n"
+	die("usage: dmenu [-bcfiv] [-l lines] [-p prompt] [-fn font] [-m monitor]\n"
 	    "             [-nb color] [-nf color] [-sb color] [-sf color] [-w windowid]");
 }
 
@@ -736,6 +840,10 @@ main(int argc, char *argv[])
 			exit(0);
 		} else if (!strcmp(argv[i], "-b")) /* appears at the bottom of the screen */
 			topbar = 0;
+		else if (!strcmp(argv[i], "-c"))   /* centred SKYNET panel (needs -l > 0) */
+			centered = 1;
+		else if (!strcmp(argv[i], "-t"))   /* classic full-width bar */
+			centered = 0;
 		else if (!strcmp(argv[i], "-f"))   /* grabs keyboard before reading stdin */
 			fast = 1;
 		else if (!strcmp(argv[i], "-i")) { /* case-insensitive item matching */

@@ -304,3 +304,159 @@ durduruldu. NetworkManager, Wi-Fi ve bağlantı durumu (`connected:full`)
 etkilenmedi. Arduino kartlarının seri portları artık modem yoklamasına
 uğramaz. NFS istemcisi (`rpcbind`, `nfs-common`) kullanıcı tercihiyle korundu.
 Geri dönüş: `sudo apt install modemmanager`.
+
+## Gereksiz kod ve dosya temizliği — 20 Kasım 2026
+
+Tema bileşenleri kullanılmayan kod, ölü yapılandırma ve canlı sistemden kopmuş
+kopyalar için tarandı: DWM ve dmenu `-Wall -Wextra -Wunused` ile derlendi;
+tüm `sources/` C kodunda tanımlı ama çağrılmayan statik fonksiyon/makro
+arandı ve her aday elle doğrulandı; ekran görüntüleri, Dunst simgeleri, GTK
+varlıkları, `runtime/` ve `home/` dosyaları canlı kopyalarla ve
+referanslarıyla karşılaştırıldı.
+
+**Kaldırılanlar**
+
+- DWM: hiç çizilmeyen `SchemeStatusBATCell1/2/4/5` renk şemaları (her biri
+  açılışta X sunucusunda boşuna 3 renk ayırıyordu), kullanılmayan
+  `col_gray1` ve hiçbir şey değiştirmeyen `floorp` pencere kuralı (etiket
+  0, yüzme 0, monitör −1 = varsayılan). Tek kalan `BATCell3`, gerçek işine
+  göre `SchemeStatusAccent` oldu. Yeni ikilinin durum alanı önceki sürümle
+  piksel düzeyinde aynıdır (0 farklı piksel). Kurulu SHA-256:
+  `f90c8817101d6e3d1244c421d2d78a4068aac10be28528f598b705f26a838d0a`;
+  önceki ikili `~/.local/share/dwm-theme-backups/before-cleanup-20261120T110043Z/`.
+- GTK: `~/.config/gtk-3.0` ve `gtk-4.0` altındaki `gtk.css` (yalnız
+  `@import 'colors.css';`), iki `colors.css` (yalnız `*_breeze` adlı
+  renkler) ve 24 SVG'lik `gtk-3.0/assets/`. Bunlar KDE GTK ayar aracının
+  Breeze çıktısıydı; SKYNET-Black-Red teması bu adların hiçbirini
+  kullanmıyor ve aracın paketi kurulu değil. Canlı kopyalar silinmedi,
+  `~/.local/state/skynet-rice/cleanup-20261120/` altına taşındı. Sonrasında
+  GTK 3 teması, ikonlar ve imleç aynı şekilde yükleniyor.
+  `manifests/captured-files.json` tarihsel yakalama kaydı olarak değişmedi
+  (önceden silinen `.fehbg` gibi).
+
+**Canlıyla eşitlenen kopyalar**
+
+- `home/.icons/default/index.theme`: canlı `Inherits=Skynet`, depo hâlâ
+  `breeze_cursors` diyordu.
+- `runtime/usr/local/libexec/greetd/start-x`: canlı sürüm
+  `/usr/local/bin/skynet-session` oturumunu da tanıyor; depo kopyası geride
+  kalmıştı. `sh -n` geçer.
+
+**Bilerek bırakılanlar (karar kullanıcıda)**
+
+- `home/.config/autostart/ferdium.desktop`: DWM autostart XDG girdilerini
+  çalıştırmadığı için hiç tetiklenmiyor ve canlıda yok
+  (`docs/RESTORE.md` bunu zaten belirtiyor).
+- `runtime/usr/local/libexec/expertbook-mute-led`: kurulu değil, hiçbir
+  başlatıcı çağırmıyor; LED'leri `skynet-audio-leds` yönetiyor. Donanım
+  geçmişi için referans olarak tutuluyor olabilir.
+- slstatus'un `BAT [▰▰▰▰▱]` hücre karakterleri: DWM artık hücreleri kendisi
+  çiziyor, ama bu biçim DWM ile slstatus arasındaki veri sözleşmesi ve
+  testlere bağlı; kazanç birkaç satır.
+- suckless ortak dosyalarındaki kullanılmayan `BETWEEN`/`ARGF` makroları ve
+  systray yamasının `XEMBED_WINDOW_ACTIVATE` sabiti: upstream kod.
+
+Taramada çıkan diğer adaylar (greeter `skynet_biometric_draw`, MATE Polkit
+`*_init`, xwinwrap fonksiyonları) yerel yama veya GObject makroları
+üzerinden kullanıldığı için yanlış pozitifti.
+
+Regresyon: `tests/test_theme_assets.py` içindeki `DwmSchemeHygieneTest`
+her şemanın çizildiğini, `config.h`'nin yalnız bilinen şemaları
+tanımladığını ve etkisiz pencere kuralı olmadığını denetler; temizlik
+öncesi kaynakta bu kontroller beş sorunu da yakalıyor.
+
+### Kullanılmayan paketler ve manifest — 20 Kasım 2026
+
+`manifests/desktop-packages.txt` canlı sistemle karşılaştırıldı. Listede
+kurulu olmayan ve geri yüklemede yanlış/çakışan kurulum önerecek beş paket
+vardı: `network-manager-gnome` (paket adı artık `network-manager-applet`),
+`polkit-kde-agent-1` (yerine MATE Polkit ajanı, `mate-polkit`) ve
+`pipewire`/`pipewire-pulse`/`wireplumber` (oturum PulseAudio kullanıyor;
+PipeWire hiç çalışmıyor). Bunlar gerçek karşılıklarıyla değiştirildi;
+rice'ın doğrudan kullandığı ama listede olmayan `xss-lock`, `flameshot`,
+`zathura`, `zathura-pdf-poppler`, `thunar`, `mousepad`, `fprintd`,
+`libpam-fprintd` eklendi. Liste artık 36 pakettir ve hepsi kurulu.
+greetd, Fastfetch ve bottom `docs/RESTORE.md` gereği ayrı sağlanır.
+`breeze-cursor-theme` listede kalır: Skynet imleci `Inherits=breeze_cursors`.
+
+Sistemde kurulu olup rice tarafından kullanılmayanlar (kaldırılmadı, karar
+kullanıcıda): Devuan canlı imajının XFCE görevinden kalan `parole`,
+`ristretto`, `xfce4-clipman`, `xfce4-dict`, `xfce4-notes`,
+`xfce4-screenshooter`, `xfce4-taskmanager`, `xfce4-terminal`, devre dışı
+`slim` (`K01slim`; giriş yöneticisi greetd), `xscreensaver`,
+`xscreensaver-gl`, `xscreensaver-data` (kilit XSecureLock + kendi saver'ı)
+ve ModemManager kaldırıldıktan sonra sahipsiz kalan 10 paket
+(`apt-get -s autoremove`: usb-modeswitch, libqmi/libmbim/libqrtr, libjim).
+Thunar ve eklentileri, tumbler, xfconf ve Mousepad kullanıldığı için
+aday değildir. `task-desktop`/`task-laptop` meta paketleri kaldırılırsa
+bağımlılıkları otomatik işaretlenir; önce kullanılanlar `apt-mark manual`
+ile korunmalıdır.
+
+Skynet imleci (`~/.icons/Skynet`, üçüncü taraf) lisansı doğrulanmadığı
+için depoya alınmadı.
+
+**Uygulanan temizlik (kullanıcı onayıyla: "sistem sağlığını, temayı ve
+donanımı bozmayacak olanlar")**
+
+- `usb-modeswitch` ve `usb-modeswitch-data` **korundu** ve `apt-mark manual`
+  ile autoremove'dan çıkarıldı: kuralları `0bda:1a2b` (RTL8822BU'nun sürücü
+  CD modu) içeriyor; TP-Link `2357:0138` adaptörü bir gün bu modda açılırsa
+  Wi-Fi'ı bu araç kurtarır. Bağımlılığı `libjim0.83` de bu sayede kalır.
+- Kaldırılan 23 paket (`remove`, ayar dosyaları korunarak; sürümler
+  `~/.local/state/skynet-rice/cleanup-20261120/removed-packages.txt`):
+  parole, ristretto, xfce4-clipman/dict/notes/screenshooter/taskmanager/
+  terminal, xscreensaver(+gl, data), slim ve bunların bıraktığı sahipsiz
+  kütüphaneler (libck-connector0, libdbus-glib-1-2, libturbojpeg0,
+  libjpeg-turbo-progs) ile ModemManager'dan kalan hücresel modem
+  kütüphaneleri (libqmi/libmbim/libqrtr; sistemde WWAN modemi yok).
+  apt'nin göremediği `/opt`, `/usr/local`, Floorp ve Spotify ikilileri bu
+  kütüphaneler için tarandı; kullanan yok. `task-*` meta paketleri ve
+  Thunar/Mousepad/tumbler/xfconf zincire girmedi.
+- Devre dışı `slim`'in kalan init betiği `purge` ile silindi; açılışta
+  yalnız `S05greetd` var.
+- Sonrası: `dpkg --audit` temiz, autoremove adayı 0, iki Wi-Fi arayüzü IP
+  almış, greetd/dwm/slstatus/dunst/nm-applet/blueman/snixembed/PulseAudio/
+  xss-lock çalışıyor, GTK teması/ikon/imleç aynı.
+- Depoya alınan, kurulu ve kullanılan ama eksik üç dosya:
+  `runtime/usr/local/libexec/skynet-session-extras` (skynet-session
+  çağırır), `runtime/usr/local/libexec/skynet-led-access` ve onu çağıran
+  `runtime/etc/udev/rules.d/91-skynet-audio-leds.rules`.
+- Hiç tetiklenmeyen `home/.config/autostart/ferdium.desktop` depodan
+  çıkarıldı. `expertbook-mute-led` donanım geçmişi referansı olarak
+  bırakıldı.
+
+### USB-C (UCSI) kurtarma — 20 Kasım 2026
+
+115 açılışın yaklaşık %60'ında `ucsi_acpi` "PPM init failed (ETIMEDOUT)" veriyor.
+Oran şarj adaptörü takılıyken (%57) ve çıkıkken (%67) benzer. Kernel 6.12.117,
+upstream'deki 10 sn zaman aşımı düzeltmelerini zaten içeriyor. Mainline'daki
+init yeniden denemesi ise `ETIMEDOUT`'u kapsamıyor.
+
+Aynı gün yapılan denemeler, modülün kaldırılıp hemen yüklenmesinin işe
+yaramadığını gösterdi. Bekleme koyulduğunda kurtarma çalıştı. Adaptör
+belirleyici değildi:
+
+| Deneme | Adaptör | Kaldırma–yükleme arası | Sonuç |
+|---|---|---|---|
+| 11:16, 16:59 açılış servisi; 16:10 elle; 17:07 servis | takılı | yok | başarısız |
+| 17:15 servis | çıkık | yok | başarısız |
+| 16:44 elle | çıkık | 3 sn | başarılı |
+| 17:16 elle | takılı | 3 sn | başarılı |
+
+İkinci bulgu: `ucsi_init()` portları PPM ile konuşmasını bitirmeden kaydediyor.
+Sonraki bir komut zaman aşımına uğrarsa portları yaklaşık 20 sn sonra geri
+kaldırıyor (16:59: "con2: failed to get status", ardından "PPM init failed").
+Eski yardımcı bu ara durumu "recovered" diye kaydetmişti.
+
+`expertbook-ucsi-recover` buna göre güncellendi:
+
+- Modül kaldırıldıktan sonra 5/10/20 sn bekleniyor.
+- Bir açılışta en fazla 3 deneme yapılıyor; denemeler arasında 60 sn var.
+- Portlar ancak 30 sn kesintisiz kayıtlı kalırsa hazır sayılıyor.
+- Ara beklemede portlar kendiliğinden gelirse ya da sürücü elle kaldırılırsa
+  dokunulmuyor.
+
+Ara sürümde denenen "adaptör çıkınca yeniden dene" mantığı, 17:15'teki
+başarısız denemeden sonra kaldırıldı. Testler `tests/test_ucsi_recover.py`
+içinde (21 test). Bekleme, deneme sınırı ve deneme aralığı mutasyonla
+doğrulandı.

@@ -75,8 +75,7 @@
 enum { CurNormal, CurResize, CurMove, CurLast }; /* cursor */
 enum { SchemeNorm, SchemeSel, SchemeStatusCPU, SchemeStatusBAT,
        SchemeStatusDate, SchemeStatusTime, SchemeStatusBATMeter,
-       SchemeStatusBATCell1, SchemeStatusBATCell2, SchemeStatusBATCell3,
-       SchemeStatusBATCell4, SchemeStatusBATCell5,
+       SchemeStatusAccent,
        SchemeStatusCPUBadge, SchemeStatusCPUMeter,
        SchemeBarTitle, SchemeBarTagSel, SchemeBarLayout, SchemeStatusLabel }; /* color schemes */
 enum { NetSupported, NetWMName, NetWMState, NetWMCheck,
@@ -847,29 +846,63 @@ statusframe(int x, int w)
 	          x + MIN(w - 2, 38), 1);
 }
 
-/* Compact CPU instrument: exact percentage and a six-part hexagonal dial. */
+/* One CPU bar per started 10 % of load; 0 % and invalid samples stay dark. */
+static int
+cpulitbars(int percent)
+{
+	return percent <= 0 ? 0 : (MIN(percent, 100) + 9) / 10;
+}
+
+/* Five battery cells rounded to the nearest 20 %; any charge shows one cell. */
+static int
+batterylitcells(int percent)
+{
+	return percent <= 0 ? 0 : MAX(1, MIN(5, (percent + 10) / 20));
+}
+
+/* Forward-leaning bar, the same "////" stroke used by the fastfetch panel.
+ * XRender antialiases the slanted sides; horizontal edges stay on whole
+ * pixels so the bar keeps a crisp base and top at bar scale. */
+static void
+slantbar(int x, int bottom, int w, int h, const Clr *color)
+{
+	const double lean = h * 3.0 / 14.0; /* equal angle for every height */
+	XPointDouble bar[4];
+	XRenderPictFormat *format;
+	Picture dst, src;
+
+	if (w <= 0 || h <= 0)
+		return;
+	bar[0] = (XPointDouble){ x, bottom };
+	bar[1] = (XPointDouble){ x + w, bottom };
+	bar[2] = (XPointDouble){ x + w + lean, bottom - h };
+	bar[3] = (XPointDouble){ x + lean, bottom - h };
+	format = XRenderFindVisualFormat(dpy, DefaultVisual(dpy, screen));
+	dst = XRenderCreatePicture(dpy, drw->drawable, format, 0, NULL);
+	src = XRenderCreateSolidFill(dpy, &color->color);
+	XRenderCompositeDoublePoly(dpy, PictOpOver, src, dst,
+	                           XRenderFindStandardFormat(dpy, PictStandardA8),
+	                           0, 0, 0, 0, bar, 4, 0);
+	XRenderFreePicture(dpy, src);
+	XRenderFreePicture(dpy, dst);
+}
+
+/* Compact CPU instrument: chip, label, ten-step rising load ramp, percentage. */
 static int
 cpupanel(int x, const char *text, int render)
 {
-	const int iconw = 16, gap = 7, meterw = 28;
+	const int iconw = 16, gap = 7, bars = 10, barw = 3, barstep = 5;
+	const int meterw = (bars - 1) * barstep + barw + 3;
 	const int labelw = drw_fontset_getwidth(drw, "CPU");
 	const int valuew = drw_fontset_getwidth(drw, "100%");
 	const int iconx = x + statuspadding + 2;
 	const int labelx = iconx + iconw + gap;
-	const int valuex = labelx + labelw + gap;
-	const int meterx = valuex + valuew + gap;
-	const int w = meterx - x + meterw + statuspadding + 2;
+	const int meterx = labelx + labelw + gap;
+	const int valuex = meterx + meterw + gap;
+	const int w = valuex - x + valuew + statuspadding;
 	const int center = (bh - (int)barlinepx) / 2;
-	static const XPoint facets[6][4] = {
-		{ { -4, -8 }, { 4, -8 }, { 3, -6 }, { -3, -6 } },
-		{ { 6, -7 }, { 10, -1 }, { 8, -1 }, { 5, -5 } },
-		{ { 10, 1 }, { 6, 7 }, { 5, 5 }, { 8, 1 } },
-		{ { 4, 8 }, { -4, 8 }, { -3, 6 }, { 3, 6 } },
-		{ { -6, 7 }, { -10, 1 }, { -8, 1 }, { -5, 5 } },
-		{ { -10, -1 }, { -6, -7 }, { -5, -5 }, { -8, -1 } }
-	};
-	int percent, iy, pin, slot, lit, vertex;
-	XPoint segment[4];
+	int percent, iy, pin, slot, lit;
+	const Clr *color;
 	char value[16];
 
 	if (!render)
@@ -905,22 +938,15 @@ cpupanel(int x, const char *text, int render)
 		XDrawLine(dpy, drw->drawable, drw->gc, iconx + 13, iy + pin,
 		          iconx + 15, iy + pin);
 	}
-	/* Clockwise facets show current load without history or extra updates. */
-	if (percent < 0) {
-		XSetForeground(dpy, drw->gc, scheme[SchemeStatusLabel][ColFg].pixel);
-		XDrawLine(dpy, drw->drawable, drw->gc, meterx + 10, center, meterx + 17, center);
-	} else {
-		lit = (percent * 6 + 99) / 100;
-		for (slot = 0; slot < 6; slot++) {
-			for (vertex = 0; vertex < 4; vertex++)
-				segment[vertex] = (XPoint){ meterx + meterw / 2 + facets[slot][vertex].x,
-				                            center + facets[slot][vertex].y };
-			XSetForeground(dpy, drw->gc,
-			               scheme[SchemeStatusCPUMeter][slot < lit ? ColFg : ColBg].pixel);
-			XFillPolygon(dpy, drw->drawable, drw->gc, segment, 4, Convex, CoordModeOrigin);
-		}
-		XSetForeground(dpy, drw->gc, scheme[SchemeStatusLabel][ColFg].pixel);
-		XFillRectangle(dpy, drw->drawable, drw->gc, meterx + meterw / 2 - 1, center - 1, 2, 2);
+	/* One bar per started 10 % of current load; the leading bar is brightest.
+	 * Missing data leaves every bar dark next to the "--%" readout. */
+	lit = cpulitbars(percent);
+	for (slot = 0; slot < bars; slot++) {
+		color = slot >= lit ? &scheme[SchemeStatusCPUMeter][ColBg] :
+		        slot == lit - 1 ? &scheme[SchemeStatusAccent][ColFg] :
+		        &scheme[SchemeStatusCPUMeter][ColFg];
+		slantbar(meterx + slot * barstep, center + 7, barw,
+		         4 + slot * 10 / (bars - 1), color);
 	}
 	return w;
 }
@@ -977,7 +1003,7 @@ batterypanel(int x, const char *text, int render)
 {
 	const int labelw = drw_fontset_getwidth(drw, "BAT");
 	const int valuew = drw_fontset_getwidth(drw, "100%");
-	const int gap = 8, bodyw = 34, tipw = 4;
+	const int gap = 8, bodyw = 36, tipw = 4;
 	const int iconx = x + statuspadding + labelw + gap;
 	const int badgex = iconx + bodyw + tipw + 5;
 	const int valuex = badgex + 14 + gap;
@@ -987,11 +1013,10 @@ batterypanel(int x, const char *text, int render)
 	const unsigned long bg = scheme[SchemeStatusBAT][ColBg].pixel;
 	const unsigned long fg = scheme[SchemeStatusBAT][ColFg].pixel;
 	const unsigned long red = scheme[SchemeStatusBATMeter][ColFg].pixel;
-	const unsigned long highlight = scheme[SchemeStatusBATCell3][ColFg].pixel;
 	const unsigned long edge = scheme[SchemeStatusBAT][ColBorder].pixel;
-	int percent, state, charging, low, filled, cx, cy, cell, cellx, cellw, lit;
+	int percent, state, charging, low, cx, cy, cell, lit;
 	char value[16];
-	XPoint bolt[7];
+	XPoint bolt[7], casing[7];
 
 	if (!render)
 		return w;
@@ -1012,25 +1037,29 @@ batterypanel(int x, const char *text, int render)
 	drw_text(drw, x + statuspadding, 3, labelw, bh - 6, 0,
 	         charging ? "CHG" : state == 2 ? "AC" : "BAT", 0);
 	if (h >= 12) {
-		/* Five clean cells; the state badge never covers the actual charge. */
-		batteryroundrect(iconx, y, bodyw, h, 2, low || charging ? red : fg);
-		batteryroundrect(iconx + 1, y + 1, bodyw - 2, h - 2, 1, bg);
-		batteryroundrect(iconx + bodyw + 1, y + h / 2 - 3, tipw - 1, 6, 1,
-		                 state ? red : fg);
-		filled = percent <= 0 ? 0 : MAX(1, (bodyw - 6) * percent / 100);
-		for (cell = 0; cell < 5; cell++) {
-			cellx = cell * 6;
-			cellw = 4;
-			lit = MAX(0, MIN(cellw, filled - cellx));
-			batteryroundrect(iconx + 3 + cellx, y + 3, cellw, h - 6, 0,
-			                 scheme[SchemeStatusCPUMeter][ColBg].pixel);
-			batteryroundrect(iconx + 3 + cellx, y + 3, lit, h - 6, 0, red);
-			if (lit > 1) {
-				XSetForeground(dpy, drw->gc, highlight);
-				XDrawLine(dpy, drw->drawable, drw->gc,
-				          iconx + 3 + cellx, y + 3, iconx + 2 + cellx + lit, y + 3);
-			}
-		}
+		/* Chamfered casing echoing the clipped status frame; five leaning
+		 * cells, the leading charged cell brightest. The badge never covers
+		 * the charge. */
+		casing[0] = (XPoint){ iconx + 3, y };
+		casing[1] = (XPoint){ iconx + bodyw - 1, y };
+		casing[2] = (XPoint){ iconx + bodyw - 1, y + h - 4 };
+		casing[3] = (XPoint){ iconx + bodyw - 4, y + h - 1 };
+		casing[4] = (XPoint){ iconx, y + h - 1 };
+		casing[5] = (XPoint){ iconx, y + 3 };
+		casing[6] = casing[0];
+		XSetForeground(dpy, drw->gc, bg);
+		XFillPolygon(dpy, drw->drawable, drw->gc, casing, 6, Convex, CoordModeOrigin);
+		XSetForeground(dpy, drw->gc, low || charging ? red : fg);
+		XDrawLines(dpy, drw->drawable, drw->gc, casing, 7, CoordModeOrigin);
+		XSetForeground(dpy, drw->gc, state ? red : fg);
+		XFillRectangle(dpy, drw->drawable, drw->gc, iconx + bodyw + 1, y + h / 2 - 3,
+		               tipw - 1, 6);
+		lit = batterylitcells(percent);
+		for (cell = 0; cell < 5; cell++)
+			slantbar(iconx + 4 + cell * 6, y + h - 4, 3, h - 7,
+			         cell >= lit ? &scheme[SchemeStatusCPUMeter][ColBg] :
+			         cell == lit - 1 && !low ? &scheme[SchemeStatusAccent][ColFg] :
+			         &scheme[SchemeStatusBATMeter][ColFg]);
 		/* Fixed badge space avoids movement when AC/charging state changes. */
 		cx = badgex + 7;
 		cy = y + h / 2;
@@ -1163,7 +1192,7 @@ clockpanel(int x, const char *text, int clock, int render)
 				XDrawLine(dpy, drw->drawable, drw->gc, iconx + 7, cy,
 				          iconx + 7 + minutehand.x, cy + minutehand.y);
 				/* A longer, two-pixel hour hand stays distinct at bar scale. */
-				XSetForeground(dpy, drw->gc, scheme[SchemeStatusBATCell3][ColFg].pixel);
+				XSetForeground(dpy, drw->gc, scheme[SchemeStatusAccent][ColFg].pixel);
 				XSetLineAttributes(dpy, drw->gc, 2, LineSolid, CapButt, JoinMiter);
 				XDrawLine(dpy, drw->drawable, drw->gc, iconx + 7, cy,
 				          iconx + 7 + hourhand.x, cy + hourhand.y);

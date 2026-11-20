@@ -13,11 +13,11 @@ Yedekteki `manifest.json` önce var olan ve yeni oluşturulan yolları ayırır;
 `files/` altındaki dosyaları aynı göreli yola geri koyarak eski ayarlara dönülebilir.
 
 Geri yüklenenler: Bash/nvm başlangıç ayarları, Kitty teması, Dunst, Fastfetch,
-bottom, GTK 2/3/4 görünümü, fontconfig, xsettingsd, Flameshot, Ferdium XDG
-autostart kaydı, SKYNET duvar kâğıdı ve kilit arka planı. Programların kendileri
-bu komutla kurulmaz. Ferdium'un yolu `/opt/Ferdium/ferdium`; farklı bir paket
-kullanılırsa `.config/autostart/ferdium.desktop` güncellenmelidir. DWM'nin
-`autostart.sh` betiği genel XDG autostart dosyalarını çalıştırmaz.
+bottom, GTK 2/3/4 görünümü, fontconfig, xsettingsd, Flameshot, SKYNET duvar
+kâğıdı ve kilit arka planı. Programların kendileri bu komutla kurulmaz. DWM'nin
+`autostart.sh` betiği genel XDG autostart dosyalarını çalıştırmadığı için eski
+Ferdium XDG autostart kaydı 20 Kasım 2026'da depodan çıkarıldı (hiç
+tetiklenmiyordu); Ferdium elle başlatılır.
 
 `home/.config/mimeapps.list`, PDF için Zathura'nın PDF Poppler başlatıcısını,
 ses ve video için VLC'yi, JPEG/PNG/GIF/BMP/WebP fotoğrafları için `qimgv`'yi

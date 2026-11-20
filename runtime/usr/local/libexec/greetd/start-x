@@ -7,7 +7,7 @@ if [ "$#" -eq 0 ]; then
 fi
 export XDG_SESSION_TYPE=x11
 case "$*" in
-    'dbus-run-session dwm'|dwm)
+    'dbus-run-session dwm'|dwm|/usr/local/bin/skynet-session)
         export DESKTOP_SESSION=dwm XDG_SESSION_DESKTOP=dwm XDG_CURRENT_DESKTOP=dwm
         ;;
 esac

@@ -57,3 +57,21 @@ yeniden derleme sınırları [LOGO.md](LOGO.md) ve [RESTORE.md](RESTORE.md) içi
 güncel SysVinit kurulum listesi değildir. Geçmiş doğrulama notları, o tarihteki
 testleri anlatmaya devam eder. Bu temizlik yeni bir init geçişi veya yeniden
 başlatma testi değildir.
+
+## Uyku ve hazırda bekletme kapalı
+
+Sistem hiçbir koşulda uyumaz ve hazırda bekletmeye geçmez; işlemler kapak
+kapalıyken de çalışmaya devam eder. Ayar iki elogind eki ile yapılır
+(depoda `runtime/etc/elogind/`):
+
+- `sleep.conf.d/80-skynet-no-sleep.conf`: suspend, hibernate, hybrid-sleep
+  ve suspend-then-hibernate yasak. elogind D-Bus `CanSuspend`/`CanHibernate`
+  sorgularına `no` döner; masaüstü veya bir program istese de uyku olmaz.
+- `logind.conf.d/80-skynet-lock.conf`: güç tuşu, uyku/hazırda bekletme
+  tuşları ve kapak (pil, adaptör, dock) yalnız oturumu kilitler; boşta
+  kalma eylemi yok.
+
+`/etc/acpi/powerbtn-acpi-support.sh` logind D-Bus servisi varken hiçbir şey
+yapmaz. 20 Kasım 2026 denetiminde kayıtlarda (19 Ekim'den beri) hiç
+`PM: suspend`/`hibernation` girdisi yoktu.
+

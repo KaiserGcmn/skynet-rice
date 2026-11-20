@@ -27,7 +27,7 @@ class BatteryPanelTest(unittest.TestCase):
     def setUpClass(cls):
         if not shutil.which('cc') or not shutil.which('pkg-config'):
             raise unittest.SkipTest('requires a C compiler and X11/Xft headers')
-        flags = subprocess.run(['pkg-config', '--cflags', '--libs', 'xft', 'x11', 'fontconfig'],
+        flags = subprocess.run(['pkg-config', '--cflags', '--libs', 'xft', 'xrender', 'x11', 'fontconfig'],
                                capture_output=True, text=True)
         if flags.returncode:
             raise unittest.SkipTest('requires X11/Xft development files')

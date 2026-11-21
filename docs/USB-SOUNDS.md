@@ -26,6 +26,14 @@ ve kullanıcının PulseAudio uyumlu ses sunucusu gerekir; bu makinede zaten var
 - Aynı cihazın tekrarlanan olayları atlanır. Hub'ın aynı yöndeki 400 ms içindeki
   olayları tek sesle bildirilir. Yeni olay sesi önceki sesi kesebilir; uzun
   ses kuyrukları oluşmaz.
+- Çıkarma sesi 1,5 sn bekletilir. Aynı üretici/ürün kimliği (bcdDevice hariç)
+  bu sürede geri gelirse ne çıkarma ne ikinci takma sesi çalınır. Neden: TP-Link
+  Archer T3U (2357:0138, rtw88_8822bu) takılınca önce USB 2 olarak bağlanıyor,
+  sürücü onu USB 3 kipine geçirince kopup 0,5 sn sonra SuperSpeed veriyolunda
+  tekrar geliyor (21 Kasım 2026 14:58:01–02). Eskiden bu "tak–çıkar–tak" üç
+  ses olarak duyuluyordu. Gevşek temasta oluşan kısa kopmalar da aynı şekilde
+  tek ses olur. Gerçek çıkarmanın sesi 1,5 sn gecikmeli gelir; takma sesi
+  bekletilmez.
 - mpv yalnız ses çalarken çalışır. Kullanıcının mpv ayarları ve betikleri
   yüklenmez; pencere açılmaz, oynatma geçmişi tutulmaz, ekran kilidi engellenmez.
   Ses örneğine -6 dB azaltma uygulanır; sistem sesi ve mikrofon ayarları

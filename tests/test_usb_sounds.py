@@ -31,9 +31,12 @@ class UsbSoundsTest(unittest.TestCase):
         (self.root / 'bus/usb/devices' / name).symlink_to(path)
         return '/' + str(path.relative_to(self.root))
 
-    def event(self, action, path, devtype='usb_device'):
-        return {'ACTION': action, 'DEVPATH': path, 'SUBSYSTEM': 'usb',
-                'DEVTYPE': devtype}
+    def event(self, action, path, devtype='usb_device', product=None):
+        properties = {'ACTION': action, 'DEVPATH': path, 'SUBSYSTEM': 'usb',
+                      'DEVTYPE': devtype}
+        if product:
+            properties['PRODUCT'] = product
+        return properties
 
     def test_startup_is_silent_but_removing_existing_device_is_reported(self):
         path = self.device()
@@ -100,15 +103,8 @@ class UsbSoundsTest(unittest.TestCase):
         with self.assertRaises(OSError):
             usb.acquire_lock(self.root)
 
-    def test_event_pipeline_coalesces_hubs_and_stops_children_with_session(self):
-        state = usb.Devices(self.root)
-        first, second = self.device('1-2'), self.device('1-3')
-        internal = self.device('1-4', 'fixed')
-        def block(action, path):
-            return ''.join(f'{k}={v}\n' for k, v in
-                           self.event(action, path).items()) + '\n'
-        added = block('add', first) * 2 + block('add', second) + block('add', internal)
-        removed = block('remove', first) * 2 + block('remove', second)
+    def run_pipeline(self, first_burst, second_burst, state, session_seconds='1'):
+        """Feed two udev bursts 0.2 s apart; return the sound files played."""
         for name in usb.SOUNDS.values():
             (self.root / name).touch()
         record = self.root / 'played'
@@ -120,7 +116,7 @@ class UsbSoundsTest(unittest.TestCase):
                            'import sys,time;sys.stdout.write(sys.argv[1]);'
                            'sys.stdout.flush();time.sleep(.2);'
                            'sys.stdout.write(sys.argv[2]);sys.stdout.flush();'
-                           'time.sleep(30)', added, removed]
+                           'time.sleep(30)', first_burst, second_burst]
             elif command[0] == '/usr/bin/mpv':
                 command = ['/usr/bin/python3', '-c',
                            'import sys,time;from pathlib import Path;'
@@ -130,17 +126,87 @@ class UsbSoundsTest(unittest.TestCase):
             child = actual_popen(command, **kwargs)
             children.append(child)
             return child
-        with actual_popen(['/bin/sleep', '1']) as session:
+        with actual_popen(['/bin/sleep', session_seconds]) as session:
             try:
                 with mock.patch.object(usb, 'Devices', return_value=state), \
+                        mock.patch.object(usb, 'REPLUG_WINDOW', 0.3), \
                         mock.patch.object(usb.subprocess, 'Popen', side_effect=popen):
                     usb.monitor(self.root, session.pid)
-                self.assertEqual(record.read_text().splitlines(),
-                                 list(usb.SOUNDS.values()))
                 self.assertTrue(all(p.poll() is not None for p in children))
             finally:
                 for child in children:
                     usb.stop(child)
+        return record.read_text().splitlines() if record.exists() else []
+
+    def block(self, action, path, product=None):
+        return ''.join(f'{k}={v}\n' for k, v in
+                       self.event(action, path, product=product).items()) + '\n'
+
+    def test_event_pipeline_coalesces_hubs_and_stops_children_with_session(self):
+        state = usb.Devices(self.root)
+        first, second = self.device('1-2'), self.device('1-3')
+        internal = self.device('1-4', 'fixed')
+        added = (self.block('add', first) * 2 + self.block('add', second) +
+                 self.block('add', internal))
+        removed = self.block('remove', first) * 2 + self.block('remove', second)
+        self.assertEqual(self.run_pipeline(added, removed, state),
+                         list(usb.SOUNDS.values()))
+
+    def test_usb3_mode_switch_after_plugging_makes_one_sound(self):
+        # Archer T3U, 2026-11-21 14:58: USB 2 arrival, rtw88 drops it and it
+        # returns 0.5 s later on the SuperSpeed bus with another bcdDevice.
+        state = usb.Devices(self.root)
+        usb2, usb3 = self.device('3-9'), self.device('2-3')
+        burst = (self.block('add', usb2, '2357/138/210') +
+                 self.block('remove', usb2, '2357/138/210'))
+        again = self.block('add', usb3, '2357/0138/300')
+        self.assertEqual(self.run_pipeline(burst, again, state),
+                         ['Usbdeviceconnected.mp3'])
+
+    def test_real_unplug_is_still_announced_after_the_window(self):
+        state = usb.Devices(self.root)
+        path = self.device('3-9')
+        played = self.run_pipeline(self.block('add', path, '2357/138/210'),
+                                   self.block('remove', path, '2357/138/210'), state)
+        self.assertEqual(played, list(usb.SOUNDS.values()))
+
+
+class ReplugTest(unittest.TestCase):
+    def test_identity_ignores_usb_mode_and_leading_zeros(self):
+        self.assertEqual(usb.identity({'PRODUCT': '2357/138/210'}),
+                         usb.identity({'PRODUCT': '2357/0138/300'}))
+        self.assertNotEqual(usb.identity({'PRODUCT': '2357/138/210'}),
+                            usb.identity({'PRODUCT': '2357/120/210'}))
+        self.assertEqual(usb.identity({'DEVPATH': '/devices/x'}), '/devices/x')
+
+    def test_default_window_covers_the_measured_reenumeration(self):
+        # Measured gap: USB disconnect 14:58:02.113 -> SuperSpeed add .629.
+        self.assertGreaterEqual(usb.REPLUG_WINDOW, 1.0)
+        self.assertLessEqual(usb.REPLUG_WINDOW, 3.0)
+        self.assertEqual(usb.Replug().window, usb.REPLUG_WINDOW)
+
+    def test_quick_return_cancels_both_sounds(self):
+        replug = usb.Replug(window=1.5)
+        self.assertEqual(replug.feed('add', 'tp', 0.0), 'add')
+        self.assertIsNone(replug.feed('remove', 'tp', 0.3))
+        self.assertEqual(replug.timeout(0.3), 1.5)
+        self.assertIsNone(replug.feed('add', 'tp', 0.8))
+        self.assertIsNone(replug.due(10.0))
+        self.assertIsNone(replug.timeout(10.0))
+
+    def test_removal_is_announced_once_the_window_ends(self):
+        replug = usb.Replug(window=1.5)
+        self.assertIsNone(replug.feed('remove', 'tp', 0.0))
+        self.assertIsNone(replug.due(1.4))
+        self.assertEqual(replug.due(1.5), 'remove')
+        self.assertIsNone(replug.due(2.0))
+
+    def test_late_return_and_other_devices_are_announced(self):
+        replug = usb.Replug(window=1.5)
+        replug.feed('remove', 'tp', 0.0)
+        self.assertEqual(replug.feed('add', 'mouse', 0.5), 'add')
+        self.assertEqual(replug.feed('add', 'tp', 2.0), 'add')
+        self.assertEqual(replug.due(2.0), 'remove')
 
 
 if __name__ == '__main__':

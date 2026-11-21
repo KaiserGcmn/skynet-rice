@@ -16,6 +16,9 @@ SOUNDS = {
     'add': 'Usbdeviceconnected.mp3',
     'remove': 'Usbdevicedisconnected.mp3',
 }
+# A removal is held this long: devices that re-enumerate right after arriving
+# (rtw88 Wi-Fi switching USB 2 -> 3, a loose contact) then make one sound.
+REPLUG_WINDOW = 1.5
 
 
 def external_device(path):
@@ -52,6 +55,42 @@ class Devices:
             self.present.remove(path)
             return 'remove'
         return None
+
+
+def identity(properties):
+    """vendor/product without bcdDevice, which changes with the USB mode."""
+    product = properties.get('PRODUCT', '').split('/')
+    if len(product) >= 2 and all(product[:2]):
+        return 'usb:' + '/'.join(part.lower().lstrip('0') or '0' for part in product[:2])
+    return properties.get('DEVPATH', '')
+
+
+class Replug:
+    """Hold removals briefly so a quick re-enumeration is not announced."""
+    def __init__(self, window=None):
+        self.window = REPLUG_WINDOW if window is None else window
+        self.pending = {}
+
+    def feed(self, action, key, now):
+        """Return the action to announce now, or None."""
+        if action == 'remove':
+            self.pending[key] = now + self.window
+            return None
+        if now <= self.pending.get(key, now - 1):
+            del self.pending[key]
+            return None
+        return action   # an expired removal stays pending for due()
+
+    def due(self, now):
+        expired = [key for key, deadline in self.pending.items() if deadline <= now]
+        for key in expired:
+            del self.pending[key]
+        return 'remove' if expired else None
+
+    def timeout(self, now):
+        if not self.pending:
+            return None
+        return max(0.0, min(self.pending.values()) - now)
 
 
 class Events:
@@ -130,10 +169,35 @@ def monitor(sounds, session_pid):
                 stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                 env=dict(os.environ, LC_ALL='C'), bufsize=0)
             selector.register(monitor_process.stdout, selectors.EVENT_READ, 'usb')
-            devices, events = Devices(), Events()
+            devices, events, replug = Devices(), Events(), Replug()
             last_action, last_time = None, 0
+
+            def announce(action):
+                nonlocal player, player_fd, last_action, last_time
+                now = time.monotonic()
+                # A hub can announce several devices in one burst.
+                if action == last_action and now - last_time < 0.4:
+                    return
+                last_action, last_time = action, now
+                sound = sounds / SOUNDS[action]
+                if not sound.is_file():
+                    return
+                if player_fd is not None:
+                    selector.unregister(player_fd)
+                    os.close(player_fd)
+                    player_fd = None
+                stop(player)
+                player = subprocess.Popen(
+                    player_command(sound), stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                player_fd = os.pidfd_open(player.pid)
+                selector.register(player_fd, selectors.EVENT_READ, player)
+
             while True:
-                for key, _ in selector.select():
+                ready = selector.select(replug.timeout(time.monotonic()))
+                if replug.due(time.monotonic()):
+                    announce('remove')
+                for key, _ in ready:
                     if key.data == 'session':
                         return
                     if key.data != 'usb':
@@ -149,26 +213,11 @@ def monitor(sounds, session_pid):
                         raise RuntimeError('USB event monitor stopped')
                     for properties in events.feed(data):
                         action = devices.event(properties)
-                        if action is None:
-                            continue
-                        now = time.monotonic()
-                        # A hub can announce several devices in one burst.
-                        if action == last_action and now - last_time < 0.4:
-                            continue
-                        last_action, last_time = action, now
-                        sound = sounds / SOUNDS[action]
-                        if not sound.is_file():
-                            continue
-                        if player_fd is not None:
-                            selector.unregister(player_fd)
-                            os.close(player_fd)
-                            player_fd = None
-                        stop(player)
-                        player = subprocess.Popen(
-                            player_command(sound), stdin=subprocess.DEVNULL,
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                        player_fd = os.pidfd_open(player.pid)
-                        selector.register(player_fd, selectors.EVENT_READ, player)
+                        if action is not None:
+                            action = replug.feed(action, identity(properties),
+                                                 time.monotonic())
+                        if action is not None:
+                            announce(action)
         finally:
             stop(player)
             stop(monitor_process)

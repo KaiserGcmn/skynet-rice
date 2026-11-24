@@ -49,6 +49,9 @@ class RestoreTest(unittest.TestCase):
         for line in profile.splitlines():
             if line.strip() and not line.startswith('#'):
                 self.assertRegex(line, r'^export XCURSOR_(THEME|SIZE)=[A-Za-z0-9_-]+$')
+        video = 'wallpapers/livewallpaperskynet.mp4'
+        tracked = Path(__file__).resolve().parents[1] / 'home' / video
+        self.assertEqual((self.home / video).stat().st_size, tracked.stat().st_size)
         self.assertIsNone(self.call_restore(True))
 
     def test_symlink_aborts_before_replacing_files(self):

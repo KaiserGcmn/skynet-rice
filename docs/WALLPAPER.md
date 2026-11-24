@@ -129,8 +129,18 @@ Testler: `tests/test_wallpaper_quality.py`.
 `~/wallpapers/livewallpaperskynet.mp4` (3840×2160, 50 kare/sn, H.264 High,
 23,6 Mbit/s, 12 saniye, sessiz) `dwm-wallpaper set` ile seçildi. GIF'in aksine
 video dönüştürülmez; dosya olduğu gibi oynatılır, önbellek kopyası oluşmaz ve
-eski GIF kopyası temizlenir. Dosya 35 MB olduğu için depoya eklenmedi; seçim
-`~/.config/dwm-desktop/wallpaper.json` içinde kalır.
+eski GIF kopyası temizlenir. Dosya (35 MB) 24 Kasım 2026'da
+`home/wallpapers/livewallpaperskynet.mp4` olarak depoya eklendi; `restore-home.py`
+onu `~/wallpapers/` altına geri yükler. Seçim kullanıcıya özeldir ve ev dizini
+yolunu içerdiği için `~/.config/dwm-desktop/wallpaper.json` depoda yoktur.
+Geri yükledikten sonra seçmek için:
+
+```sh
+dwm-wallpaper set "$HOME/wallpapers/livewallpaperskynet.mp4"
+```
+
+Videonun üst verisinde kodlayıcı dışında başlık, yazar, konum ya da oluşturma
+zamanı yoktur (`tests/test_video_wallpaper.py` bunu sınar).
 
 Ölçümler (1920×1200 ekran, pilde, tek örnek):
 

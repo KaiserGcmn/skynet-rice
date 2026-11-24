@@ -31,6 +31,7 @@ Kullanıcının isteğiyle 28 Ekim 2026'da 22 kullanılmayan dosya kaldırıldı
 - İki OpenRC hizmet taslağı ve boşalan profil dizini.
 - Eski Debian profilindeki 15 systemd hizmet, timer, drop-in ve güç ayarı.
 - Bu hizmetleri başlatan eski `.xprofile`, `.xsessionrc` ve mute LED udev kuralı.
+  (Bugünkü `home/.xprofile` yalnızca imleç temasını ayarlar, hizmet başlatmaz.)
 - `dwm-session-lock` yardımcısının runtime ve kaynak kopyaları.
 
 Eski kilit yardımcısı çalışan sisteme kurulu değildi. Silinen dosyalar kullanıcı
@@ -50,7 +51,10 @@ Depodaki temel gtkgreet kaynağı ve XSecureLock yaması hâlâ Debian'a ait
 servis arşivi temizliği sırasında silinmedi veya yeniden derlenmedi.
 Bu makinedeki kurulu sürüm, `~/.local/share/skynet-rice/devuan-source.patch`
 yerel uyarlamasıyla `loginctl` kullanır. `scripts/build.py` bu yamayı otomatik
-uygulamaz; çıktıyı çalışan sistemin üzerine topluca kopyalama. Yerel katman ve
+uygulamaz; çıktıyı çalışan sistemin üzerine topluca kopyalama. Yamanın depodaki
+kopyası `profiles/devuan/devuan-source.patch` dosyasıdır; kaynakların bu hâline
+temiz uygulandığı bir testle sınanır. Uygulamak için kaynakların ayrı bir
+kopyasında `git apply` kullan. Yerel katman ve
 yeniden derleme sınırları [LOGO.md](LOGO.md) ve [RESTORE.md](RESTORE.md) içindedir.
 
 `profiles/debian/` altındaki kalan donanım/masaüstü ayarları,

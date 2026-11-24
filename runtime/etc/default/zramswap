@@ -1,0 +1,6 @@
+# Bounded compressed swap for browser/IDE memory peaks.
+# Capacity is a limit; memory is consumed only as pages are stored.
+ALGO=lz4
+PERCENT=
+SIZE=4096
+PRIORITY=100

@@ -43,7 +43,12 @@ class RestoreTest(unittest.TestCase):
         self.assertFalse((self.home / '.local/bin/fastfetch').exists())
         self.assertFalse((self.home / '.local/bin/skynet-fetch-logo').exists())
         self.assertFalse((self.home / '.config/systemd').exists())
-        self.assertFalse((self.home / '.xprofile').exists())
+        # The old service-starting .xprofile must never return; the tracked one
+        # only selects the cursor theme.
+        profile = (self.home / '.xprofile').read_text()
+        for line in profile.splitlines():
+            if line.strip() and not line.startswith('#'):
+                self.assertRegex(line, r'^export XCURSOR_(THEME|SIZE)=[A-Za-z0-9_-]+$')
         self.assertIsNone(self.call_restore(True))
 
     def test_symlink_aborts_before_replacing_files(self):

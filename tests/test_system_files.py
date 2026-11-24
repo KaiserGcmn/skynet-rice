@@ -2,13 +2,14 @@
 from pathlib import Path
 import os
 import re
+import shutil
 import subprocess
 import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
 ETC = ROOT / 'runtime/etc'
-INIT_SCRIPTS = ('host-firewall', 'zram-swap')
+INIT_SCRIPTS = ('greetd', 'host-firewall', 'zram-swap')
 
 
 class InitScriptsTest(unittest.TestCase):
@@ -54,6 +55,50 @@ class ConfigFilesTest(unittest.TestCase):
         for line in (ETC / 'apt/apt.conf.d/20auto-upgrades').read_text().splitlines():
             self.assertRegex(line, r'^APT::Periodic::[A-Za-z-]+ "\d+";$')
 
+    def test_default_files_are_shell_syntax_and_keep_the_machine_values(self):
+        expected = {
+            'zramswap': {'ALGO': 'lz4', 'SIZE': '4096', 'PRIORITY': '100'},
+            'dbus': {'IDTYPE': 'FIXED'},
+            'keyboard': {'XKBLAYOUT': 'tr'},
+        }
+        for name, wanted in expected.items():
+            path = ETC / 'default' / name
+            with self.subTest(file=name):
+                subprocess.run(['sh', '-n', str(path)], check=True)
+                found = {}
+                for line in path.read_text().splitlines():
+                    if line.strip() and not line.lstrip().startswith('#'):
+                        key, value = re.fullmatch(r'([A-Z_]+)=("?)([^"]*)\2', line).group(1, 3)
+                        found[key] = value
+                for key, value in wanted.items():
+                    self.assertEqual(found.get(key), value)
+
+    def test_xwrapper_allows_only_the_console_user(self):
+        lines = [line for line in (ETC / 'X11/Xwrapper.config').read_text().splitlines()
+                 if line.strip() and not line.startswith('#')]
+        self.assertEqual(lines, ['allowed_users=console'])
+
+
+class MachinePatchTest(unittest.TestCase):
+    patch = ROOT / 'profiles/devuan/devuan-source.patch'
+
+    def test_patch_only_touches_tracked_sources_and_names_no_one(self):
+        text = self.patch.read_text()
+        files = re.findall(r'(?m)^diff --git a/(\S+) b/', text)
+        self.assertTrue(files)
+        for name in files:
+            with self.subTest(file=name):
+                self.assertTrue(name.startswith('sources/'))
+                self.assertTrue((ROOT / name).is_file())
+        self.assertNotRegex(text, r'/home/[A-Za-z]')
+
+    def test_patch_applies_cleanly_to_the_tracked_sources(self):
+        if not shutil.which('git') or not (ROOT / '.git').exists():
+            self.skipTest('requires a git checkout')
+        result = subprocess.run(['git', 'apply', '--check', str(self.patch)],
+                                cwd=ROOT, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
 
 class RestoreGuideTest(unittest.TestCase):
     guide = (ROOT / 'docs/RESTORE.md').read_text()
@@ -72,6 +117,16 @@ class RestoreGuideTest(unittest.TestCase):
         self.assertIn('su $USER $USER', section)
         self.assertIn('$HOME/.local/state/skynet-rice/session.log', section)
         self.assertNotRegex(section, r'/home/[A-Za-z]')
+
+    def test_hand_installed_system_files_are_covered_by_the_guide(self):
+        section = self.guide.split(self.heading)[1]
+        for relative in ('init.d/host-firewall', 'init.d/zram-swap', 'init.d/greetd',
+                         'cron.weekly/weekly-fstrim', 'sysctl.d/99-zram.conf',
+                         'apt/apt.conf.d/20auto-upgrades', 'default/zramswap',
+                         'default/dbus', 'default/keyboard', 'X11/Xwrapper.config'):
+            with self.subTest(file=relative):
+                self.assertTrue((ETC / relative).is_file())
+                self.assertIn(relative, section)
 
 
 if __name__ == '__main__':

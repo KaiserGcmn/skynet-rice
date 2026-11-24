@@ -168,6 +168,11 @@ Blueman'ın DWM çubuğuna doğrudan simge yerleştiren kalıcı kullanıcı aya
 | `cron.weekly/weekly-fstrim` | fstab'daki dosya sistemleri için haftalık TRIM |
 | `sysctl.d/99-zram.conf` | `vm.swappiness = 100`, `vm.page-cluster = 0` |
 | `apt.conf.d/20auto-upgrades` | günlük paket listesi güncellemesi ve otomatik güvenlik yükseltmeleri |
+| `init.d/greetd` | greetd paket betiğinin bu makinedeki hâli (`dbus` ve `elogind` sonrası başlar); paket güncellenirse apt dosya çakışması sorar |
+| `default/zramswap` | `zram-tools` ayarı: lz4, 4096 MiB, öncelik 100 |
+| `default/dbus` | `IDTYPE="FIXED"` (yukarıdaki Spotify oturum notu) |
+| `default/keyboard` | Türkçe (`tr`) klavye; konsol, X11 ve giriş ekranı (`hud-greeter` bu dosyayı okur) aynı düzeni kullanır |
+| `X11/Xwrapper.config` | `allowed_users=console` |
 
 Gerekli paketler: `nftables`, `zram-tools`, `util-linux`, `logrotate`, `unattended-upgrades`. Kurulum:
 
@@ -177,9 +182,18 @@ sudo install -m 0755 runtime/etc/init.d/host-firewall runtime/etc/init.d/zram-sw
 sudo install -m 0755 runtime/etc/cron.weekly/weekly-fstrim /etc/cron.weekly/
 sudo install -m 0644 runtime/etc/sysctl.d/99-zram.conf /etc/sysctl.d/
 sudo install -m 0644 runtime/etc/apt/apt.conf.d/20auto-upgrades /etc/apt/apt.conf.d/
+sudo install -m 0755 runtime/etc/init.d/greetd /etc/init.d/greetd
+sudo install -m 0644 runtime/etc/default/zramswap runtime/etc/default/dbus runtime/etc/default/keyboard /etc/default/
+sudo install -m 0644 runtime/etc/X11/Xwrapper.config /etc/X11/Xwrapper.config
 sudo update-rc.d host-firewall defaults
 sudo update-rc.d zram-swap defaults
 ```
+
+`default/dbus` ve `default/keyboard` bu makinenin değerleridir (sabit makine kimliği
+kipi, Türkçe düzen). Başka bir makineye kurmadan önce gözden geçir. `/etc/greetd/config.toml`
+Devuan'da `vt = 7` kullanır; `profiles/debian/rootfs/etc/greetd/config.toml` bu değeri taşır.
+Kurulu dwm, giriş ekranı ve kilit için yerel katman yaması
+`profiles/devuan/devuan-source.patch` içindedir ([DEVUAN.md](DEVUAN.md)).
 
 Aşağıdaki üç dosya `runtime/` içinde tutulmaz: derleme her dosyayı `0755` ile hazırlar,
 oysa sudoers yalnız `0440` dosyaları okur; kullanıcı adı da herkese açık depoya girmemelidir.

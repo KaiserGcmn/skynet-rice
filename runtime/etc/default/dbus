@@ -1,0 +1,14 @@
+# This is a configuration file for /etc/init.d/dbus; it allows you to
+# perform common modifications to the behavior of the dbus daemon
+# startup without editing the init script (and thus getting prompted
+# by dpkg on upgrades).  We all love dpkg prompts.
+
+# Parameters to pass to dbus.
+PARAMS=""
+
+# IDTYPE: how to deal with /var/lib/dbus/machine-id:
+# 
+# if IDTYPE="RANDOM": regenerate /var/lib/dbus/machine-id at each boot
+# else keep it fixed across reboots
+# Preserve this machine identity so application login records survive reboot.
+IDTYPE="FIXED"

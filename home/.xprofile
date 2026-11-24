@@ -1,0 +1,3 @@
+# User cursor theme for the DWM session and its applications.
+export XCURSOR_THEME=Skynet
+export XCURSOR_SIZE=32

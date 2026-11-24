@@ -1,0 +1,22 @@
+{
+  "name": "skynet-amoled-black",
+  "displayName": "SKYNET AMOLED Black",
+  "description": "True black (#000000) theme with red/steel accents. Syntax colours follow VS Code's Dark 2026.",
+  "version": "0.1.0",
+  "publisher": "skynet-rice",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Themes"
+  ],
+  "contributes": {
+    "themes": [
+      {
+        "label": "SKYNET AMOLED Black",
+        "uiTheme": "vs-dark",
+        "path": "./themes/skynet-amoled-black-color-theme.json"
+      }
+    ]
+  }
+}

@@ -1,0 +1,6 @@
+// Read after 99expertbook-security-upgrades, which clears the list first.
+// Let the daily unattended-upgrades run also update Floorp. Its flat
+// repository has no Origin/Suite fields, so it is matched by host name.
+Unattended-Upgrade::Origins-Pattern {
+        "site=ppa.floorp.app";
+};

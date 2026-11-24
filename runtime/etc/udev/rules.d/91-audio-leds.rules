@@ -1,0 +1,3 @@
+# PulseAudio default-device mute LEDs, including software mute and device changes.
+ACTION=="add", SUBSYSTEM=="leds", KERNEL=="platform::mute", RUN+="/usr/local/libexec/expertbook-led-access"
+ACTION=="add", SUBSYSTEM=="leds", KERNEL=="platform::micmute", RUN+="/usr/local/libexec/expertbook-led-access"

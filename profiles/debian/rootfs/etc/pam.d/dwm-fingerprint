@@ -1,0 +1,12 @@
+#%PAM-1.0
+# Fingerprint/password authentication for the screen locker.
+# A timeout or an unavailable reader falls through to the password stack.
+# After the fingerprint stage failed, later attempts in the next two minutes
+# (for example after a wrong password) ask for the password only.
+# The gate never authenticates: `check` can only skip the fingerprint line,
+# and any helper error keeps the normal order (fingerprint, then password).
+auth [success=1 default=ignore] pam_exec.so quiet /usr/local/libexec/dwm-lock-fingerprint-gate check
+auth sufficient pam_fprintd.so max-tries=3 timeout=10
+auth optional pam_exec.so quiet /usr/local/libexec/dwm-lock-fingerprint-gate mark
+@include common-auth
+auth optional pam_exec.so quiet /usr/local/libexec/dwm-lock-fingerprint-gate clear

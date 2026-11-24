@@ -1,0 +1,96 @@
+#!/usr/bin/python3
+"""Keep the two mute indicators in sync with PulseAudio's default devices."""
+from pathlib import Path
+from contextlib import contextmanager
+import fcntl, os, select, signal, subprocess, sys, time
+
+os.environ['LC_ALL']='C'
+PACTL='/usr/bin/pactl'
+LEDS={'sink':Path('/sys/class/leds/platform::mute/brightness'),
+      'source':Path('/sys/class/leds/platform::micmute/brightness')}
+# Audio events remain immediate; only the idle hardware fallback is slower.
+FALLBACK_INTERVAL=30.0
+RETRY_INTERVAL=2.0
+running=True
+def stop(*_):
+    global running
+    running=False
+
+@contextmanager
+def wakeup_pipe():
+    # A signal wakes select immediately without a one-second polling timer.
+    reader,writer=os.pipe2(os.O_NONBLOCK|os.O_CLOEXEC)
+    previous=None
+    try:
+        previous=signal.set_wakeup_fd(writer)
+        yield reader
+    finally:
+        if previous is not None: signal.set_wakeup_fd(previous)
+        os.close(reader)
+        os.close(writer)
+
+def sync():
+    ok=True
+    for kind,path in LEDS.items():
+        try:
+            p=subprocess.run([PACTL,'get-'+kind+'-mute','@DEFAULT_'+kind.upper()+'@'],
+                capture_output=True,text=True,timeout=2)
+            state=p.stdout.strip()
+            if p.returncode or state not in ('Mute: yes','Mute: no'):
+                ok=False
+                continue
+            desired='1' if state=='Mute: yes' else '0'
+            if path.read_text().strip()!=desired:
+                path.write_text(desired+'\n')
+        except (OSError,subprocess.TimeoutExpired):
+            ok=False
+    return ok
+
+def main():
+    if len(sys.argv)>1 and sys.argv[1]=='--once':
+        return 0 if sync() else 1
+    runtime=os.environ.get('XDG_RUNTIME_DIR')
+    if not runtime:
+        print('audio-leds: XDG_RUNTIME_DIR is unavailable',file=sys.stderr)
+        return 1
+    with open(Path(runtime)/'audio-leds.lock','w') as lock, wakeup_pipe() as wakeup:
+        try: fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        except BlockingIOError: return 0
+        for sig in (signal.SIGTERM,signal.SIGINT,signal.SIGHUP):
+            signal.signal(sig,stop)
+        while running:
+            subscriber=subprocess.Popen([PACTL,'subscribe'],stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL)
+            pending=b''
+            try:
+                synced=sync()
+                next_sync=time.monotonic()+(FALLBACK_INTERVAL if synced else RETRY_INTERVAL)
+                while running and subscriber.poll() is None:
+                    ready=select.select([subscriber.stdout,wakeup],[],[],
+                        max(0,next_sync-time.monotonic()))[0]
+                    if wakeup in ready: os.read(wakeup,8192)
+                    if not running: break
+                    dirty=False
+                    if subscriber.stdout in ready:
+                        data=os.read(subscriber.stdout.fileno(),8192)
+                        if not data: break
+                        pending+=data
+                        lines=pending.split(b'\n');pending=lines.pop()
+                        dirty=any(any(b' on '+kind+b' ' in line for kind in (b'sink',b'source',b'server',b'card')) for line in lines)
+                    now=time.monotonic()
+                    if dirty or now>=next_sync:
+                        # Retain recovery if udev recreates a LED without an audio event.
+                        synced=sync()
+                        next_sync=time.monotonic()+(FALLBACK_INTERVAL if synced else RETRY_INTERVAL)
+            finally:
+                if subscriber.poll() is None:
+                    subscriber.terminate()
+                try: subscriber.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    subscriber.kill();subscriber.wait()
+                subscriber.stdout.close()
+            if running: time.sleep(1)
+    return 0
+
+if __name__=='__main__':
+    raise SystemExit(main())

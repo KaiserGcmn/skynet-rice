@@ -1,0 +1,141 @@
+#!/usr/bin/python3
+"""Install an explicitly approved optional VMD test entry; keep default boot intact."""
+import argparse
+import datetime
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+
+BASE = Path('/var/lib/expertbook/boot/vmd-fix')
+MENU = Path('/boot/grub/grub.cfg')
+SCRIPT = Path('/etc/grub.d/43_expertbook_vmd_test')
+
+
+def run(*args):
+    result = subprocess.run(args, check=True, text=True, capture_output=True)
+    return result.stdout + result.stderr
+
+
+def sha(path):
+    with Path(path).open('rb') as handle:
+        return hashlib.file_digest(handle, 'sha256').hexdigest()
+
+
+def install(source, target, mode):
+    temp = target.with_name(target.name + '.vmd-test-new')
+    with temp.open('xb') as handle, source.open('rb') as reader:
+        shutil.copyfileobj(reader, handle)
+        os.fchmod(handle.fileno(), mode)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temp, target)
+
+
+def linux_lines(menu):
+    return [shlex.split(line) for line in menu.splitlines()
+            if re.match(r'^\s*linux(?:efi)?\s+', line)]
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--stage', required=True)
+    parser.add_argument('--install', action='store_true')
+    args = parser.parse_args()
+    os.environ.update(PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', LC_ALL='C')
+    if os.geteuid()!=0 or not os.access(MENU.parent, os.W_OK):
+        raise RuntimeError('System administrator authentication is required.')
+    stage = Path(args.stage)
+    if stage.is_symlink() or stage.resolve().parent != Path('/var/backups/vmd-test'):
+        raise RuntimeError('Unexpected preparation directory.')
+    if stage.stat().st_uid != 0 or stage.stat().st_mode & 0o022:
+        raise RuntimeError('The preparation directory is not protected by root ownership and permissions.')
+    meta = json.loads((stage/'verification.json').read_text())
+    if meta['kernel']!=os.uname().release or meta['installed'] or meta['runtime_tested']:
+        raise RuntimeError('Preparation metadata does not match the expected state.')
+    if Path('/sys/class/dmi/id/product_name').read_text().strip() != 'ASUS EXPERTBOOK B3405CCA':
+        raise RuntimeError('The hardware has changed.')
+    image = Path(meta['test_image_destination'])
+    if image != Path('/boot/initrd.img-'+os.uname().release+'-vmd-test'):
+        raise RuntimeError('Unexpected test initramfs destination.')
+    for file,expected in [(stage/'initrd-vmd-test',meta['initramfs_sha256']),
+                          (stage/'vmd.ko.xz',meta['module_sha256']),
+                          (stage/'43_expertbook_vmd_test',meta['menu_script_sha256'])]:
+        if file.is_symlink() or file.stat().st_uid!=0 or sha(file)!=expected:
+            raise RuntimeError('A prepared file has changed: '+str(file))
+    if (stage/'vmd.ko.xz').read_bytes()[7]!=1:
+        raise RuntimeError('The module XZ checksum is not CRC32; prepare the image again.')
+    for path,expected in meta['protected_sha256'].items():
+        if sha(path)!=expected:
+            raise RuntimeError('A protected system file has changed since preparation: '+path)
+    if any(os.path.lexists(p) for p in (image,SCRIPT)):
+        raise RuntimeError('The test file or entry already exists; it was not overwritten.')
+    if 'expertbook-vmd-test' in MENU.read_text():
+        raise RuntimeError('The menu already contains the test entry.')
+    run('/bin/sh','-n',str(stage/'43_expertbook_vmd_test'))
+    run('grub-script-check',str(stage/'test-entry.cfg'))
+    defaults = run('/bin/sh','-c','''. /etc/default/grub
+for fragment in /etc/default/grub.d/*.cfg; do
+    [ ! -f "$fragment" ] || . "$fragment"
+done
+printf '%s\\n' "$GRUB_DEFAULT" "$GRUB_TIMEOUT" "$GRUB_CMDLINE_LINUX_DEFAULT"
+''').splitlines()
+    if defaults[:2]!=['0','3'] or not set(meta['security_options']).issubset(shlex.split(defaults[2])):
+        raise RuntimeError('Default boot or security parameters have changed.')
+    print('Preflight passed: the separate test entry will preserve the normal default and security settings.',flush=True)
+    if not args.install:
+        return
+    backup = stage/('installation-'+datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f'))
+    backup.mkdir(mode=0o700)
+    shutil.copy2(MENU,backup/'grub.cfg')
+    original = MENU.read_text()
+    old_linux = linux_lines(original)
+    try:
+        install(stage/'initrd-vmd-test',image,0o600)
+        install(stage/'43_expertbook_vmd_test',SCRIPT,0o755)
+        generated = backup/'grub.cfg.new'
+        (backup/'grub-generation.log').write_text(run('grub-mkconfig','-o',str(generated)))
+        run('grub-script-check',str(generated))
+        new = generated.read_text()
+        entries = linux_lines(new)
+        if entries[:-1]!=old_linux or entries[-1]!=old_linux[0]:
+            raise RuntimeError('Existing kernel parameters have changed or the test entry differs.')
+        if new.count('--id expertbook-vmd-test')!=1 or str(image) not in new:
+            raise RuntimeError('Could not verify the test menu entry.')
+        for path,expected in meta['protected_sha256'].items():
+            if sha(path)!=expected:
+                raise RuntimeError('A protected system file has changed: '+path)
+        if sha(image)!=meta['initramfs_sha256']:
+            raise RuntimeError('Could not verify the installed test image.')
+        install(generated,MENU,0o600)
+        os.sync()
+        result={'stage':str(stage),'backup':str(backup),'installed':True,
+                'runtime_tested':False,'default_boot_unchanged':True,
+                'security_options_unchanged':True,'normal_initramfs_unchanged':True,
+                'stock_module_unchanged':True,'test_image':str(image),
+                'entry_id':'expertbook-vmd-test','module_version':meta['module_version']}
+        (backup/'verification.json').write_text(json.dumps(result,indent=2)+'\n')
+        target=BASE/'installed.json'
+        if target.is_symlink(): raise RuntimeError('The report destination is a symbolic link.')
+        target.write_text(json.dumps(result,indent=2)+'\n')
+        target.chmod(0o600); os.chown(target, 0, 0)
+        print(json.dumps(result,indent=2),flush=True)
+        print('Only the optional test entry was added; no driver was loaded and the system was not restarted.',flush=True)
+    except Exception:
+        install(backup/'grub.cfg',MENU,0o600)
+        SCRIPT.unlink(missing_ok=True)
+        image.unlink(missing_ok=True)
+        os.sync()
+        print('The failed installation was rolled back and the previous menu restored.',flush=True)
+        raise
+
+
+if __name__=='__main__':
+    try: main()
+    except Exception as error:
+        print('Error: '+str(error),file=sys.stderr); sys.exit(1)

@@ -1,0 +1,351 @@
+#!/usr/bin/python3
+"""Play user-provided sounds for external USB devices and the charger."""
+import argparse
+import fcntl
+import os
+from pathlib import Path
+import selectors
+import signal
+import stat
+import subprocess
+import sys
+import time
+
+
+SOUNDS = {
+    'add': 'Usbdeviceconnected.mp3',
+    'remove': 'Usbdevicedisconnected.mp3',
+    'charge': 'Charging.mp3',
+    'discharge': 'NoCharging.mp3',
+}
+# A removal is held this long: devices that re-enumerate right after arriving
+# (rtw88 Wi-Fi switching USB 2 -> 3, a loose contact) then make one sound.
+REPLUG_WINDOW = 1.5
+# The same sound again within this many seconds is skipped: hub bursts for USB,
+# a wobbling plug for the charger.
+REPEAT_WINDOW = {'charge': 3.0, 'discharge': 3.0}
+DEFAULT_REPEAT_WINDOW = 0.4
+
+
+def external_device(path):
+    """Ignore root hubs and soldered/internal USB devices."""
+    if path.name.startswith('usb') or not (path / 'idVendor').is_file():
+        return False
+    try:
+        return (path / 'removable').read_text().strip() != 'fixed'
+    except FileNotFoundError:
+        return (path / 'idVendor').is_file()
+
+
+class Devices:
+    def __init__(self, sysfs=Path('/sys')):
+        self.sysfs = sysfs
+        self.present = set()
+        for path in (sysfs / 'bus/usb/devices').glob('*'):
+            if external_device(path):
+                self.present.add('/' + str(path.resolve().relative_to(sysfs)))
+
+    def event(self, properties):
+        if (properties.get('SUBSYSTEM') != 'usb' or
+                properties.get('DEVTYPE') != 'usb_device'):
+            return None
+        path = properties.get('DEVPATH', '')
+        if not path.startswith('/devices/') or '..' in Path(path).parts:
+            return None
+        action = properties.get('ACTION')
+        if action == 'add' and path not in self.present:
+            if external_device(self.sysfs / path.lstrip('/')):
+                self.present.add(path)
+                return 'add'
+        elif action == 'remove' and path in self.present:
+            self.present.remove(path)
+            return 'remove'
+        return None
+
+
+class Power:
+    """Mains adapters: plugging in and unplugging after a known state."""
+    def __init__(self, sysfs=Path('/sys')):
+        self.sysfs = sysfs
+        self.online = {}
+        for path in (sysfs / 'class/power_supply').glob('*'):
+            state = self.read(path)
+            if state is not None:
+                self.online['/' + str(path.resolve().relative_to(sysfs))] = state
+
+    @staticmethod
+    def read(path):
+        try:
+            if (path / 'type').read_text().strip() != 'Mains':
+                return None
+            return (path / 'online').read_text().strip() == '1'
+        except OSError:
+            return None
+
+    def event(self, properties):
+        if properties.get('SUBSYSTEM') != 'power_supply':
+            return None
+        path = properties.get('DEVPATH', '')
+        if not path.startswith('/devices/') or '..' in Path(path).parts:
+            return None
+        action = properties.get('ACTION')
+        if action == 'remove':
+            self.online.pop(path, None)
+            return None
+        if action not in ('add', 'change'):
+            return None
+        kind = properties.get('POWER_SUPPLY_TYPE')
+        online = properties.get('POWER_SUPPLY_ONLINE')
+        if kind is None or online is None:
+            state = self.read(self.sysfs / path.lstrip('/'))
+        elif kind == 'Mains':
+            state = online == '1'
+        else:
+            state = None
+        if state is None:   # battery, USB-C role, peripheral batteries
+            return None
+        before = self.online.get(path)
+        self.online[path] = state
+        # Startup, a newly probed adapter and repeated events with the same
+        # state are silent.
+        if before is None or state == before:
+            return None
+        return 'charge' if state else 'discharge'
+
+
+def identity(properties):
+    """vendor/product without bcdDevice, which changes with the USB mode."""
+    product = properties.get('PRODUCT', '').split('/')
+    if len(product) >= 2 and all(product[:2]):
+        return 'usb:' + '/'.join(part.lower().lstrip('0') or '0' for part in product[:2])
+    return properties.get('DEVPATH', '')
+
+
+class Replug:
+    """Hold removals briefly so a quick re-enumeration is not announced."""
+    def __init__(self, window=None):
+        self.window = REPLUG_WINDOW if window is None else window
+        self.pending = {}
+
+    def feed(self, action, key, now):
+        """Return the action to announce now, or None."""
+        if action == 'remove':
+            self.pending[key] = now + self.window
+            return None
+        if now <= self.pending.get(key, now - 1):
+            del self.pending[key]
+            return None
+        return action   # an expired removal stays pending for due()
+
+    def due(self, now):
+        expired = [key for key, deadline in self.pending.items() if deadline <= now]
+        for key in expired:
+            del self.pending[key]
+        return 'remove' if expired else None
+
+    def timeout(self, now):
+        if not self.pending:
+            return None
+        return max(0.0, min(self.pending.values()) - now)
+
+
+class ChargerHold:
+    """Hold an unplug briefly: a wobbling plug that comes straight back makes
+    neither the unplug nor a second plug-in sound."""
+    def __init__(self, window=None):
+        self.replug = Replug(REPLUG_WINDOW if window is None else window)
+
+    def feed(self, action, now):
+        result = self.replug.feed('remove' if action == 'discharge' else 'add',
+                                  'charger', now)
+        return action if result else None
+
+    def due(self, now):
+        return 'discharge' if self.replug.due(now) else None
+
+    def timeout(self, now):
+        return self.replug.timeout(now)
+
+
+class Events:
+    """Parse udevadm property blocks, including fragmented pipe reads."""
+    def __init__(self):
+        self.buffer = b''
+        self.properties = {}
+
+    def feed(self, data):
+        self.buffer += data
+        while b'\n' in self.buffer:
+            line, self.buffer = self.buffer.split(b'\n', 1)
+            line = line.decode('utf-8', errors='replace').strip()
+            if not line:
+                if self.properties:
+                    yield self.properties
+                    self.properties = {}
+            elif '=' in line:
+                key, value = line.split('=', 1)
+                self.properties[key] = value
+
+
+def player_command(sound):
+    # No personal mpv scripts, window, playback history or global volume changes.
+    # Skip only leading near-silence; keep internal pauses and a 10 ms onset margin.
+    trim = ('lavfi=[silenceremove=start_periods=1:start_duration=0.002:'
+            'start_threshold=-60dB:start_silence=0.01:detection=peak:window=0.005]')
+    return ['/usr/bin/mpv', '--no-config', '--load-scripts=no', '--no-video',
+            '--audio-display=no', '--no-terminal', '--really-quiet',
+            '--stop-screensaver=no', '--ao=pulse',
+            '--audio-client-name=USB Sounds', '--volume=100',
+            '--audio-buffer=0.05', '--pulse-buffer=50',
+            '--af=' + trim + ',volume=-6dB', '--', str(sound)]
+
+
+def stop(process):
+    if process is None:
+        return
+    if process.poll() is None:
+        process.terminate()
+    try:
+        process.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+
+
+def acquire_lock(runtime):
+    info = runtime.stat()
+    if info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) & 0o077:
+        raise RuntimeError('A private user runtime directory is required')
+    fd = os.open(runtime / 'usb-sounds.lock',
+                 os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise RuntimeError('Invalid runtime lock')
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BaseException:
+        os.close(fd)
+        raise
+    # Keep the runtime lock inode: unlinking it can allow two concurrent owners.
+    return fd
+
+
+def monitor(sounds, session_pid):
+    monitor_process = player = None
+    player_fd = session_fd = None
+    with selectors.DefaultSelector() as selector:
+        try:
+            if session_pid:
+                session_fd = os.pidfd_open(session_pid)
+                selector.register(session_fd, selectors.EVENT_READ, 'session')
+            monitor_process = subprocess.Popen(
+                ['/usr/bin/udevadm', 'monitor', '--udev',
+                 '--subsystem-match=usb/usb_device',
+                 '--subsystem-match=power_supply', '--property'],
+                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                env=dict(os.environ, LC_ALL='C'), bufsize=0)
+            selector.register(monitor_process.stdout, selectors.EVENT_READ, 'usb')
+            devices, events, replug = Devices(), Events(), Replug()
+            power, charger = Power(), ChargerHold()
+            last_action, last_time = None, 0
+
+            def announce(action):
+                nonlocal player, player_fd, last_action, last_time
+                now = time.monotonic()
+                # A hub can announce several devices in one burst.
+                window = REPEAT_WINDOW.get(action, DEFAULT_REPEAT_WINDOW)
+                if action == last_action and now - last_time < window:
+                    return
+                last_action, last_time = action, now
+                sound = sounds / SOUNDS[action]
+                if not sound.is_file():
+                    return
+                if player_fd is not None:
+                    selector.unregister(player_fd)
+                    os.close(player_fd)
+                    player_fd = None
+                stop(player)
+                player = subprocess.Popen(
+                    player_command(sound), stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                player_fd = os.pidfd_open(player.pid)
+                selector.register(player_fd, selectors.EVENT_READ, player)
+
+            while True:
+                now = time.monotonic()
+                waits = [w for w in (replug.timeout(now), charger.timeout(now))
+                         if w is not None]
+                ready = selector.select(min(waits) if waits else None)
+                now = time.monotonic()
+                if replug.due(now):
+                    announce('remove')
+                if charger.due(now):
+                    announce('discharge')
+                for key, _ in ready:
+                    if key.data == 'session':
+                        return
+                    if key.data != 'usb':
+                        if key.data is player:
+                            selector.unregister(player_fd)
+                            os.close(player_fd)
+                            player_fd = None
+                            player.wait()
+                            player = None
+                        continue
+                    data = os.read(monitor_process.stdout.fileno(), 65536)
+                    if not data:
+                        raise RuntimeError('USB event monitor stopped')
+                    for properties in events.feed(data):
+                        action = devices.event(properties)
+                        if action is not None:
+                            action = replug.feed(action, identity(properties),
+                                                 time.monotonic())
+                        else:
+                            action = power.event(properties)
+                            if action is not None:
+                                action = charger.feed(action, time.monotonic())
+                        if action is not None:
+                            announce(action)
+        finally:
+            stop(player)
+            stop(monitor_process)
+            if monitor_process and monitor_process.stdout:
+                monitor_process.stdout.close()
+            for fd in (player_fd, session_fd):
+                if fd is not None:
+                    os.close(fd)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--sounds-dir', type=Path,
+                        default=Path.home() / 'customsounds')
+    parser.add_argument('--session-pid', type=int,
+                        help='Exit when this desktop-session process exits')
+    parser.add_argument('--preview', choices=SOUNDS,
+                        help='Play one sound without monitoring devices')
+    args = parser.parse_args()
+    if args.preview:
+        return subprocess.run(player_command(args.sounds_dir / SOUNDS[args.preview]),
+                              stdin=subprocess.DEVNULL, check=False).returncode
+    runtime = Path(os.environ.get('XDG_RUNTIME_DIR', f'/run/user/{os.getuid()}'))
+    try:
+        lock = acquire_lock(runtime)
+    except BlockingIOError:
+        return 0
+    def terminate(signum, frame):
+        raise SystemExit(0)
+    for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, terminate)
+    try:
+        monitor(args.sounds_dir, args.session_pid)
+    finally:
+        os.close(lock)
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except (OSError, RuntimeError) as error:
+        print(f'usb-sounds: {error}', file=sys.stderr)
+        sys.exit(1)

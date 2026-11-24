@@ -1,0 +1,72 @@
+#!/usr/bin/python3
+"""DWM helpers for Devuan; no systemd dependency or blocking desktop startup."""
+import argparse
+import fcntl
+import os
+from pathlib import Path
+import signal
+import subprocess
+import threading
+import time
+
+
+def dwm_pid():
+    for path in Path("/proc").glob("[0-9]*/comm"):
+        try:
+            if path.stat().st_uid == os.getuid() and path.read_text().strip() == "dwm":
+                return int(path.parent.name)
+        except OSError:
+            pass
+    return None
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--restore-audio", action="store_true", help="Restore only at the start of a new login")
+    args = parser.parse_args()
+    runtime = Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"))
+    os.umask(0o077)
+    lock = (runtime / "dwm-session-extras.lock").open("a")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return 0
+    stop = threading.Event()
+    for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
+        signal.signal(sig, lambda *_: stop.set())
+    audio = "/usr/local/libexec/audio-mute-state"
+    audio_worker = None
+    wm = dwm_pid()
+    if wm is None:
+        return 0
+
+    try:
+        command = [audio, "watch"]
+        if args.restore_audio:
+            command.append("--restore")
+        # Event checkpoints survive audio shutting down before the session.
+        audio_worker = subprocess.Popen(command)
+        # Same schedule as the rice's user timer; checks never reset hardware.
+        next_check = time.monotonic() + 120
+        while not stop.wait(min(30, max(0, next_check - time.monotonic()))):
+            if not Path(f"/proc/{wm}").exists():
+                break
+            if time.monotonic() >= next_check:
+                subprocess.run(
+                    ["/usr/bin/nice", "-n", "10", "/usr/bin/ionice", "-c", "3",
+                     "/usr/local/bin/expertbook-usbc-watch"], timeout=20, check=False,
+                )
+                next_check = time.monotonic() + 300
+    finally:
+        if audio_worker is not None and audio_worker.poll() is None:
+            audio_worker.terminate()
+            try:
+                audio_worker.wait(timeout=6)
+            except subprocess.TimeoutExpired:
+                audio_worker.kill()
+                audio_worker.wait()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

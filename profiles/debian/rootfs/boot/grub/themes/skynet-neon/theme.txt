@@ -1,0 +1,29 @@
+# SKYNET / Devuan Neon Arc; background supplied by the user.
+title-text: ""
+desktop-image: "background.png"
+desktop-color: "#000000"
+terminal-font: "Unifont Regular 16"
++ boot_menu {
+  left = 8%
+  top = 39%
+  width = 84%
+  height = 39%
+  item_font = "DejaVu Sans Mono Bold 28"
+  item_color = "#ECEEF1"
+  selected_item_color = "#FFFFFF"
+  item_height = 48
+  item_padding = 12
+  item_spacing = 8
+  menu_pixmap_style = "panel_*.png"
+  selected_item_pixmap_style = "select_*.png"
+}
++ label {
+  top = 84%
+  left = 8%
+  width = 84%
+  align = "left"
+  id = "__timeout__"
+  text = "Booting in %d seconds"
+  color = "#FFFFFF"
+  font = "DejaVu Sans Mono Bold 28"
+}

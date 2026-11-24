@@ -1,0 +1,51 @@
+#!/bin/sh
+# Screen backlight control with an updating Dunst notification.
+set -eu
+
+case "${1:-show}" in
+    up|down|show) brightness_action=${1:-show} ;;
+    *) printf '%s\n' 'Usage: dwm-brightness [up|down|show]' >&2; exit 2 ;;
+esac
+
+for brightness_command in brightnessctl dunstify flock; do
+    if ! command -v "$brightness_command" >/dev/null 2>&1; then
+        printf 'Required command not found: %s\n' "$brightness_command" >&2
+        exit 1
+    fi
+done
+
+# Serialize key repeats so older readings cannot replace newer notifications.
+umask 077
+brightness_lock_dir="${XDG_RUNTIME_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}}"
+mkdir -p "$brightness_lock_dir"
+exec 9>"$brightness_lock_dir/dwm-brightness.lock"
+flock -w 2 9
+
+# Restrict selection to screen backlights, excluding keyboard LEDs.
+brightness_max=$(brightnessctl --class=backlight max)
+case "$brightness_max" in
+    ''|*[!0-9]*|0) printf '%s\n' 'Could not read maximum backlight brightness.' >&2; exit 1 ;;
+esac
+# Keep a 5% floor so repeatedly pressing F5 does not turn off the backlight.
+brightness_min=$(( (brightness_max + 19) / 20 ))
+
+case "$brightness_action" in
+    up)
+        brightnessctl --class=backlight --min-value="$brightness_min" --quiet set +5%
+        ;;
+    down)
+        brightnessctl --class=backlight --min-value="$brightness_min" --quiet set 5%-
+        ;;
+esac
+
+brightness_current=$(brightnessctl --class=backlight get)
+case "$brightness_current" in
+    ''|*[!0-9]*) printf '%s\n' 'Could not read current backlight brightness.' >&2; exit 1 ;;
+esac
+brightness_percent=$(( (brightness_current * 100 + brightness_max / 2) / brightness_max ))
+if [ "$brightness_percent" -gt 100 ]; then brightness_percent=100; fi
+
+dunstify -a dwm-brightness -u low -t 1500 \
+    -h string:x-dunst-stack-tag:dwm-brightness \
+    -h int:value:"$brightness_percent" \
+    -i brightness-high "Brightness: $brightness_percent%"

@@ -1,0 +1,38 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          zram-swap
+# Required-Start:    $local_fs
+# Required-Stop:     $local_fs
+# Default-Start:     S
+# Default-Stop:      0 6
+# Short-Description: Compressed swap using the distribution's zram-tools
+### END INIT INFO
+set -eu
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+active() {
+    swapon --noheadings --show=NAME | grep -Fxq /dev/zram0
+}
+case "${1:-}" in
+    start)
+        active && exit 0
+        /usr/sbin/zramswap start
+        active
+        ;;
+    stop)
+        # Never reset a device while swapoff has failed.
+        if active; then swapoff /dev/zram0; fi
+        if [ -b /dev/zram0 ]; then zramctl --reset /dev/zram0; fi
+        ;;
+    status)
+        active || exit 3
+        zramctl /dev/zram0
+        ;;
+    restart|force-reload)
+        "$0" stop
+        "$0" start
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|status|restart|force-reload}" >&2
+        exit 2
+        ;;
+esac

@@ -1,0 +1,76 @@
+#!/usr/bin/python3
+"""Read the current boot's VMD, USB-C, and security state; write only a diagnostic report."""
+import datetime
+import argparse
+import json
+import os
+from pathlib import Path
+import pwd
+import re
+import subprocess
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--current-only', action='store_true',
+                    help='Only inspect this boot; skip previously inspected journals.')
+args = parser.parse_args()
+
+if os.geteuid() != 0:
+    raise SystemExit('Administrator access is required for kernel logs and SMART data.')
+os.environ.update(PATH='/usr/sbin:/usr/bin:/sbin:/bin', LC_ALL='C')
+account = pwd.getpwuid(int(os.environ.get('SUDO_UID') or os.environ.get('PKEXEC_UID') or os.getuid()))
+base = Path('/var/lib/expertbook/boot/ucsi-fix/retry-test')
+kernel = subprocess.run(['dmesg', '--color=never'], check=True, capture_output=True, text=True).stdout
+smart = subprocess.run(['smartctl', '-j', '-H', '-A', '/dev/nvme0'], capture_output=True, text=True, timeout=20)
+health = json.loads(smart.stdout)
+lines = kernel.splitlines()
+watch_path = Path(account.pw_dir)/'.local/state/expertbook-usbc-watch/state.json'
+history = [] if args.current_only or not watch_path.is_file() else json.loads(watch_path.read_text()).get('history', [])[-20:]
+recent_boots = []
+for event in history:
+    boot_id = event.get('boot_id', '')
+    if not re.fullmatch(r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', boot_id):
+        continue
+    log = subprocess.run(['journalctl', '--boot='+boot_id.replace('-', ''), '-k', '--no-pager',
+                          '--output=short-monotonic'], capture_output=True,
+                         text=True, timeout=30)
+    selected = [line for line in log.stdout.splitlines()
+                if re.search(r'ucsi|PPM init|Linux version|Kernel command line|'
+                             r'nvme.*(?:timeout|timed out|completion polled|resetting|abort|failed|fatal)|'
+                             r'I/O error|Buffer I/O|EXT4-fs error', line, re.I)]
+    recent_boots.append({'boot_id': boot_id, 'watch_time': event.get('time'),
+                         'watch_status': event.get('status'),
+                         'watch_ports': event.get('ports'),
+                         'journal_exit_status': log.returncode,
+                         'journal_available': bool(selected),
+                         'journal_notice': log.stderr.strip(),
+                         'relevant_kernel_lines': selected})
+result = {
+    'time': datetime.datetime.now().astimezone().isoformat(),
+    'boot_id': Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
+    'uptime_seconds': float(Path('/proc/uptime').read_text().split()[0]),
+    'vmd_version': Path('/sys/module/vmd/version').read_text().strip(),
+    'ucsi_version': Path('/sys/module/typec_ucsi/version').read_text().strip() if Path('/sys/module/typec_ucsi/version').is_file() else 'stock (no version marker)',
+    'typec_ports': sorted(p.name for p in Path('/sys/class/typec').glob('port[0-9]*') if re.fullmatch(r'port[0-9]+',p.name)),
+    'ucsi_driver': str(Path('/sys/bus/platform/devices/USBC000:00/driver').resolve()),
+    'boot_time': subprocess.run(['systemd-analyze','time'],capture_output=True,text=True,timeout=15).stdout.strip(),
+    'failed_units': subprocess.run(['systemctl','--failed','--no-legend','--plain'],capture_output=True,text=True,timeout=15).stdout.strip(),
+    'cmdline': Path('/proc/cmdline').read_text().strip(),
+    'nvme_timeout_lines': [x for x in lines if 'nvme' in x.lower() and re.search(r'timeout|timed out|completion polled', x, re.I)],
+    'storage_error_lines': [x for x in lines if re.search(r'I/O error|Buffer I/O|EXT4-fs error|nvme.*(?:resetting|abort|failed|fatal)', x, re.I)],
+    'ucsi_lines': [x for x in lines if 'ucsi' in x.lower()],
+    'module_verification_lines': [x for x in lines if re.search(r'module verification|taints kernel', x, re.I)],
+    'smart_exit_status': smart.returncode,
+    'smart_passed': health.get('smart_status', {}).get('passed'),
+    'nvme_health': health.get('nvme_smart_health_information_log', {}),
+    'security_lsm': Path('/sys/kernel/security/lsm').read_text().strip(),
+    'module_signature_enforced': Path('/sys/module/module/parameters/sig_enforce').read_text().strip(),
+    'recent_boots': recent_boots,
+}
+path = base/('runtime-'+datetime.datetime.now().strftime('%Y%m%d-%H%M%S')+'.json')
+with path.open('x') as handle:
+    os.fchmod(handle.fileno(), 0o600)
+    json.dump(result, handle, indent=2, ensure_ascii=False)
+    handle.write('\n')
+os.chown(path, 0, 0)
+print(str(path), flush=True)
+print(json.dumps(result, indent=2, ensure_ascii=False), flush=True)

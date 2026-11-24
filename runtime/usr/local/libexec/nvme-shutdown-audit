@@ -1,0 +1,181 @@
+#!/usr/bin/python3
+"""Tell which shutdown made the NVMe "Unsafe Shutdowns" counter grow.
+
+The counter rises when the SSD loses power before the kernel's shutdown
+notification completes. The kernel logs that last step after syslog has
+stopped, so the logs alone cannot say which shutdown was unsafe.
+
+`--record-stop KIND` runs from rc0/rc6 while / is still writable and stores
+the shutdown kind with the counters. `--boot` compares the stored record with
+the counters after power-up and logs one verdict per boot:
+
+  clean      orderly shutdown, counter unchanged
+  unsafe     orderly shutdown, counter grew: the final NVMe step failed
+  no-record  previous boot ended without an orderly shutdown
+             (forced power-off, crash or power loss)
+
+The helper only reads SMART data (smartctl, read-only). It never writes to
+the drive or changes power settings.
+"""
+import argparse
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import time
+
+
+DEVICE = '/dev/nvme0'
+STATE = Path('/var/lib/skynet-rice/nvme-shutdown.json')
+HISTORY = Path('/var/log/nvme-shutdown-audit.log')
+HISTORY_LINES = 200
+SMARTCTL = '/usr/sbin/smartctl'
+TAG = 'nvme-shutdown-audit'
+
+
+def counters(run=subprocess.run, device=DEVICE):
+    """Return {'unsafe': int, 'cycles': int} or None if SMART is unreadable."""
+    try:
+        result = run([SMARTCTL, '-j', '-A', device], capture_output=True,
+                     text=True, timeout=10, check=False)
+        log = json.loads(result.stdout)['nvme_smart_health_information_log']
+        return {'unsafe': int(log['unsafe_shutdowns']),
+                'cycles': int(log['power_cycles'])}
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError):
+        return None
+
+
+def boot_id(proc=Path('/proc')):
+    try:
+        return (proc / 'sys/kernel/random/boot_id').read_text().strip()
+    except OSError:
+        return None
+
+
+def load(state):
+    try:
+        data = json.loads(state.read_text())
+        return data if isinstance(data, dict) else None
+    except (OSError, ValueError):
+        return None
+
+
+def save(state, data):
+    state.parent.mkdir(parents=True, exist_ok=True)
+    temporary = state.with_name(state.name + '.tmp')
+    with open(temporary, 'w') as handle:
+        json.dump(data, handle)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temporary, state)
+
+
+def verdict(previous, now):
+    """Classify the shutdown that ended the previous boot."""
+    if previous is None:
+        return 'first-run', None
+    delta = None
+    if now is not None and isinstance(previous.get('unsafe'), int):
+        delta = now['unsafe'] - previous['unsafe']
+    if previous.get('phase') != 'stopped':
+        return 'no-record', delta
+    if delta is None:
+        return 'unknown', None
+    return ('unsafe' if delta > 0 else 'clean'), delta
+
+
+def describe(kind, previous, now, delta):
+    when = previous.get('time', '?') if previous else '?'
+    how = previous.get('kind', '?') if previous else '?'
+    count = now['unsafe'] if now else '?'
+    messages = {
+        'first-run': f'audit started; Unsafe Shutdowns={count}',
+        'clean': f'previous {how} at {when}: clean (Unsafe Shutdowns={count})',
+        'unsafe': (f'previous {how} at {when}: UNSAFE, counter +{delta} '
+                   f'(Unsafe Shutdowns={count}); orderly shutdown but the '
+                   'drive lost power before its shutdown completed'),
+        'no-record': (f'previous boot (up since {when}) ended without an orderly '
+                      f'shutdown: forced power-off, crash or power loss'
+                      + (f'; counter +{delta}' if delta else '')
+                      + f' (Unsafe Shutdowns={count})'),
+        'unknown': f'previous {how} at {when}: SMART unreadable, no verdict',
+    }
+    return messages[kind]
+
+
+def say(message, run=subprocess.run):
+    try:
+        run(['/usr/bin/logger', '-t', TAG, message], timeout=5, check=False)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+def append_history(history, line, limit=HISTORY_LINES):
+    try:
+        lines = history.read_text().splitlines()
+    except OSError:
+        lines = []
+    lines = (lines + [line])[-limit:]
+    history.parent.mkdir(parents=True, exist_ok=True)
+    history.write_text('\n'.join(lines) + '\n')
+
+
+def stamp():
+    return time.strftime('%Y-%m-%d %H:%M:%S')
+
+
+def on_boot(state=STATE, history=HISTORY, read=counters, log=say,
+            current=boot_id):
+    previous = load(state)
+    this_boot = current()
+    if previous and previous.get('boot_id') == this_boot:
+        return 'already_checked'
+    now = read()
+    kind, delta = verdict(previous, now)
+    message = describe(kind, previous, now, delta)
+    log(message)
+    append_history(history, f'{stamp()} {kind}: {message}')
+    record = {'phase': 'booted', 'boot_id': this_boot, 'time': stamp()}
+    if now:
+        record.update(now)
+    save(state, record)
+    return kind
+
+
+def on_stop(kind, state=STATE, read=counters, current=boot_id):
+    record = {'phase': 'stopped', 'kind': kind, 'boot_id': current(),
+              'time': stamp()}
+    now = read()
+    if now:
+        record.update(now)
+    save(state, record)
+    return record
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--boot', action='store_true')
+    group.add_argument('--record-stop', choices=('poweroff', 'reboot', 'halt'))
+    group.add_argument('--status', action='store_true')
+    args = parser.parse_args()
+    if args.status:
+        try:
+            print(HISTORY.read_text(), end='')
+        except OSError:
+            print('no shutdown history yet')
+        return 0
+    if args.record_stop:
+        on_stop(args.record_stop)
+        return 0
+    on_boot()
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except OSError as error:
+        print(f'{TAG}: {error}', file=sys.stderr)
+        sys.exit(1)

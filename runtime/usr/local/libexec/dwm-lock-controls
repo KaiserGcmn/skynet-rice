@@ -1,0 +1,188 @@
+#!/usr/bin/python3 -I
+"""Fixed lock-screen hardware controls and a read-only status stream.
+
+No shell, notifications, player controls, authentication or persistent daemon.
+The saver starts --watch with a pipe and terminates it on exit.
+"""
+import fcntl
+import json
+import os
+from pathlib import Path
+import selectors
+import signal
+import subprocess
+import sys
+import time
+
+
+ACTIONS = ('volume-up', 'volume-down', 'volume-mute', 'mic-mute',
+           'brightness-up', 'brightness-down')
+BACKLIGHT = Path('/sys/class/backlight')
+ENV = dict(os.environ, LC_ALL='C', PATH='/usr/bin:/bin')
+
+
+def command(*args):
+    return subprocess.check_output(args, env=ENV, text=True,
+                                   stderr=subprocess.DEVNULL, timeout=2).strip()
+
+
+def backlight():
+    for path in sorted(BACKLIGHT.iterdir()):
+        try:
+            maximum = int((path / 'max_brightness').read_text())
+            current = int((path / 'brightness').read_text())
+            if maximum > 0:
+                return path.name, maximum, current
+        except (OSError, ValueError):
+            continue
+    raise OSError('No screen backlight')
+
+
+def brightness():
+    try:
+        _, maximum, current = backlight()
+        return max(0, min(100, (current * 100 + maximum // 2) // maximum))
+    except (OSError, ValueError):
+        return -1
+
+
+def device_status(devices, name):
+    for device in devices:
+        if device.get('name') == name:
+            volumes = [int(channel['value']) for channel in device['volume'].values()]
+            if not volumes:
+                break
+            level = round(max(volumes) * 100 / 65536)
+            return max(0, min(150, level)), int(bool(device['mute']))
+    return -1, -1
+
+
+def audio_status():
+    try:
+        info = json.loads(command('/usr/bin/pactl', '-f', 'json', 'info'))
+        sinks = json.loads(command('/usr/bin/pactl', '-f', 'json', 'list', 'sinks'))
+        sources = json.loads(command('/usr/bin/pactl', '-f', 'json', 'list', 'sources'))
+        return (*device_status(sinks, info['default_sink_name']),
+                *device_status(sources, info['default_source_name']))
+    except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
+        return -1, -1, -1, -1
+
+
+def action(name):
+    if name not in ACTIONS:
+        raise ValueError('Unknown action')
+    # Drop excess key-repeat requests rather than queue controls after unlock.
+    directory = Path('/run/user') / str(os.getuid())
+    fd = os.open(directory / 'dwm-lock-controls.lock',
+                 os.O_WRONLY | os.O_CREAT | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return
+        if name == 'volume-mute':
+            command('/usr/bin/pactl', 'set-sink-mute', '@DEFAULT_SINK@', 'toggle')
+        elif name == 'mic-mute':
+            command('/usr/bin/pactl', 'set-source-mute', '@DEFAULT_SOURCE@', 'toggle')
+        elif name.startswith('volume-'):
+            current, _, _, _ = audio_status()
+            if current < 0:
+                return
+            level = max(0, min(100, current + (5 if name == 'volume-up' else -5)))
+            command('/usr/bin/pactl', 'set-sink-volume', '@DEFAULT_SINK@', f'{level}%')
+            if name == 'volume-up':
+                command('/usr/bin/pactl', 'set-sink-mute', '@DEFAULT_SINK@', '0')
+        else:
+            device, maximum, _ = backlight()
+            floor = max(1, (maximum + 19) // 20)
+            step = '+5%' if name == 'brightness-up' else '5%-'
+            command('/usr/bin/brightnessctl', '--class=backlight', '--device=' + device,
+                    '--min-value=' + str(floor), '--quiet', 'set', step)
+    finally:
+        os.close(fd)
+
+
+def watch():
+    running = True
+
+    def stop(*_):
+        nonlocal running
+        running = False
+
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+    subscriber = None
+    selector = selectors.DefaultSelector()
+    audio = (-1, -1, -1, -1)
+    previous = None
+    refresh_at = 0
+    retry_at = 0
+    events = b''
+    try:
+        while running:
+            now = time.monotonic()
+            if subscriber is None and now >= retry_at:
+                subscriber = subprocess.Popen(
+                    ['/usr/bin/pactl', 'subscribe'], env=ENV, stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+                os.set_blocking(subscriber.stdout.fileno(), False)
+                selector.register(subscriber.stdout, selectors.EVENT_READ)
+                refresh_at = now
+            if now >= refresh_at:
+                audio = audio_status()
+                refresh_at = now + 30  # Also recover from missed/default-device events.
+            state = (*audio, brightness())
+            if state != previous:
+                print(*state, flush=True)
+                previous = state
+            for key, _ in selector.select(.25):
+                data = os.read(key.fd, 8192)
+                if not data:
+                    selector.unregister(subscriber.stdout)
+                    subscriber.stdout.close()
+                    subscriber.wait(timeout=2)
+                    subscriber = None
+                    audio = (-1, -1, -1, -1)
+                    retry_at = time.monotonic() + 3
+                    continue
+                events = (events + data)[-16384:]
+                lines = events.split(b'\n')
+                events = lines.pop()
+                if any(any(kind in line for kind in
+                           (b' on sink #', b' on source #', b' on server #'))
+                       for line in lines):
+                    refresh_at = min(refresh_at, time.monotonic() + .10)
+    except BrokenPipeError:
+        pass
+    finally:
+        selector.close()
+        if subscriber is not None:
+            subscriber.terminate()
+            try:
+                subscriber.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                subscriber.kill()
+                subscriber.wait()
+            subscriber.stdout.close()
+
+
+def main():
+    if len(sys.argv) != 2:
+        return 2
+    name = sys.argv[1]
+    if name == '--watch':
+        watch()
+    elif name == '--status':
+        print(*audio_status(), brightness())
+    elif name in ACTIONS:
+        action(name)
+    else:
+        return 2
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except (OSError, ValueError, subprocess.SubprocessError):
+        sys.exit(1)

@@ -1,0 +1,115 @@
+--- a/kitty/child.py
++++ b/kitty/child.py
+@@ -589,7 +589,8 @@
+         self.terminal_ready_fd = ready_write_fd
+         if self.child_fd is not None:
+             os.set_blocking(self.child_fd, False)
+-        if not is_macos:
++        # systemd scopes are optional on non-systemd init systems.
++        if not is_macos and os.path.isdir('/run/systemd/system'):
+             ppid = getpid()
+             try:
+                 fast_data_types.systemd_move_pid_into_new_scope(pid, f'kitty-{ppid}-{self.id}.scope', f'kitty child process: {pid} launched by: {ppid}')
+--- a/kitty/modes.h
++++ b/kitty/modes.h
+@@ -65,6 +65,8 @@
+ #define FOCUS_TRACKING (1004 << 5)
+ #define MOUSE_UTF8_MODE (1005 << 5)
+ #define MOUSE_SGR_MODE (1006 << 5)
++// Translate wheel events to cursor keys on the alternate screen.
++#define ALTERNATE_SCROLL (1007 << 5)
+ #define MOUSE_URXVT_MODE (1015 << 5)
+ #define MOUSE_SGR_PIXEL_MODE (1016 << 5)
+ 
+--- a/kitty/screen.h
++++ b/kitty/screen.h
+@@ -25,7 +25,7 @@
+ 
+ typedef struct {
+     bool mLNM, mIRM, mDECTCEM, mDECSCNM, mDECOM, mDECAWM, mDECCOLM, mDECARM, mDECCKM, mCOLOR_PREFERENCE_NOTIFICATION, mBRACKETED_PASTE, mFOCUS_TRACKING,
+-        mDECSACE, mHANDLE_TERMIOS_SIGNALS, mINBAND_RESIZE_NOTIFICATION, mPASTE_EVENTS, mVISIBILITY_REPORTS;
++        mDECSACE, mHANDLE_TERMIOS_SIGNALS, mINBAND_RESIZE_NOTIFICATION, mPASTE_EVENTS, mVISIBILITY_REPORTS, mALTERNATE_SCROLL;
+     MouseTrackingMode mouse_tracking_mode;
+     MouseTrackingProtocol mouse_tracking_protocol;
+ } ScreenModes;
+--- a/kitty/screen.c
++++ b/kitty/screen.c
+@@ -45,7 +45,7 @@
+ #include "vt-parser.h"
+ #include "resize.h"
+ 
+-static const ScreenModes empty_modes = {0, .mDECAWM = true, .mDECTCEM = true, .mDECARM = true};
++static const ScreenModes empty_modes = {0, .mDECAWM = true, .mDECTCEM = true, .mDECARM = true, .mALTERNATE_SCROLL = true};
+ 
+ #define CSI_REP_MAX_REPETITIONS 65535u
+ 
+@@ -2023,6 +2023,7 @@
+         SIMPLE_MODE(DECARM)
+         SIMPLE_MODE(BRACKETED_PASTE)
+         SIMPLE_MODE(FOCUS_TRACKING)
++        SIMPLE_MODE(ALTERNATE_SCROLL)
+         SIMPLE_MODE(COLOR_PREFERENCE_NOTIFICATION)
+         SIMPLE_MODE(HANDLE_TERMIOS_SIGNALS)
+         MOUSE_MODE(MOUSE_BUTTON_TRACKING, mouse_tracking_mode, BUTTON_MODE)
+@@ -2070,8 +2071,12 @@
+             break;
+         case 7727 << 5: log_error("Application escape mode is not supported, the extended keyboard protocol should be used instead"); break;
+         case PENDING_MODE << 5:
++            // DECSET/DECRST are idempotent. Repeated starts must not replace
++            // the frozen frame or extend its safety timeout; repeated resets
++            // (including after timeout) are already in the requested state.
++            if (val == (self->paused_rendering.expires_at != 0)) break;
+             if (!screen_pause_rendering(self, val, 0)) {
+-                log_error("Pending mode change to already current mode (%d) requested. Either pending mode expired or there is an application bug.", val);
++                log_error("Failed to change synchronized output mode to %d", val);
+             }
+             break;
+         case INBAND_RESIZE_NOTIFICATION:
+@@ -2671,6 +2676,7 @@
+         SIMPLE_MODE(DECARM)
+         SIMPLE_MODE(BRACKETED_PASTE)
+         SIMPLE_MODE(FOCUS_TRACKING)
++        SIMPLE_MODE(ALTERNATE_SCROLL)
+         SIMPLE_MODE(COLOR_PREFERENCE_NOTIFICATION)
+         SIMPLE_MODE(PASTE_EVENTS)
+         SIMPLE_MODE(INBAND_RESIZE_NOTIFICATION)
+@@ -2716,6 +2722,7 @@
+     copy_specific_mode(self, DECARM, src, dest);
+     copy_specific_mode(self, BRACKETED_PASTE, src, dest);
+     copy_specific_mode(self, FOCUS_TRACKING, src, dest);
++    copy_specific_mode(self, ALTERNATE_SCROLL, src, dest);
+     copy_specific_mode(self, COLOR_PREFERENCE_NOTIFICATION, src, dest);
+     copy_specific_mode(self, INBAND_RESIZE_NOTIFICATION, src, dest);
+     copy_specific_mode(self, VISIBILITY_REPORTS, src, dest);
+@@ -3328,6 +3335,7 @@
+         KNOWN_MODE(DECCKM);
+         KNOWN_MODE(BRACKETED_PASTE);
+         KNOWN_MODE(FOCUS_TRACKING);
++        KNOWN_MODE(ALTERNATE_SCROLL);
+         KNOWN_MODE(COLOR_PREFERENCE_NOTIFICATION);
+         KNOWN_MODE(VISIBILITY_REPORTS);
+         KNOWN_MODE(INBAND_RESIZE_NOTIFICATION);
+--- a/kitty/mouse.c
++++ b/kitty/mouse.c
+@@ -1917,7 +1917,7 @@
+                     if (screen->linebuf == screen->main_linebuf) {
+                         screen_history_scroll(screen, abs(s), upwards);
+                         if (screen->selections.in_progress) update_drag(w);
+-                    } else fake_scroll(w, abs(s), upwards);
++                    } else if (screen->modes.mALTERNATE_SCROLL) fake_scroll(w, abs(s), upwards);
+                 }
+             }
+         }
+--- a/kitty/constants.py
++++ b/kitty/constants.py
+@@ -46,7 +46,9 @@
+         if DEVELOP_ROOT:
+             _slangc = (os.path.join(DEVELOP_ROOT, 'bin', 'slangc'),)
+         else:
+-            _slangc = tuple(Shlex(os.environ.get('SLANGC', 'slangc'), False))
++            bundled_slangc = os.path.join(os.path.dirname(kitty_exe()), 'slangc')
++            default_slangc = bundled_slangc if os.path.isfile(bundled_slangc) else 'slangc'
++            _slangc = tuple(Shlex(os.environ.get('SLANGC', default_slangc), False))
+     return _slangc
+ 
+ 

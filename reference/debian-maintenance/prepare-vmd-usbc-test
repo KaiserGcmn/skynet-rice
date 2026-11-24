@@ -1,0 +1,204 @@
+#!/usr/bin/python3
+"""Build and validate a separate VMD + UCSI test initramfs; never install or load it."""
+import datetime
+import hashlib
+import json
+import lzma
+import os
+from pathlib import Path
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+
+BASE = Path('/var/lib/expertbook/boot/ucsi-fix/retry-test')
+KERNEL = '6.12.111+deb13-amd64'
+MODULE = BASE / 'build-patched/typec_ucsi.ko'
+MODULE_SHA = 'f54f64ac4362d23116647174e88404ef230d7a5710b1af7dc9b733ab05e35453'
+VERSION = '6.12.111-notify-retry-test1'
+VMD_MODULE = Path('/var/backups/vmd-test/20261004-233141-741903/vmd.ko.xz')
+VMD_SHA = '6edec8c09f3b2d3e7284cf9981cdf20a6741041215af3762a7cd2180c43b6c42'
+VMD_VERSION = '0.6-mtl016-b437504-deb13-test1'
+IMAGE = '/boot/initrd.img-' + KERNEL + '-vmd-usbc-test'
+OPTIONS = 'slab_nomerge init_on_alloc=1 page_alloc.shuffle=1 randomize_kstack_offset=on vsyscall=none iommu.passthrough=0 efi=disable_early_pci_dma nmi_watchdog=0 loglevel=3'.split()
+
+
+def run(*args):
+    result = subprocess.run(args, text=True, capture_output=True)
+    if result.returncode:
+        raise RuntimeError(shlex.join(args) + '\n' + result.stdout + result.stderr)
+    return result.stdout + result.stderr
+
+
+def sha(path):
+    with Path(path).open('rb') as f:
+        return hashlib.file_digest(f, 'sha256').hexdigest()
+
+
+def main():
+    os.environ.update(PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', LC_ALL='C')
+    if os.geteuid() != 0 or not os.access('/var/backups', os.W_OK):
+        raise RuntimeError('System administrator authentication is required for preparation.')
+    if os.uname().release != KERNEL or Path('/sys/class/dmi/id/product_name').read_text().strip() != 'ASUS EXPERTBOOK B3405CCA':
+        raise RuntimeError('The inspected device or kernel has changed.')
+    device = Path('/sys/bus/pci/devices/0000:00:0e.0')
+    if (device/'vendor').read_text().strip() != '0x8086' or (device/'device').read_text().strip() != '0x7d0b':
+        raise RuntimeError('The VMD controller identity has changed.')
+    if sha(MODULE) != MODULE_SHA:
+        raise RuntimeError('The compiled and verified module has changed.')
+    if VMD_MODULE.is_symlink() or VMD_MODULE.stat().st_uid != 0 or sha(VMD_MODULE) != VMD_SHA:
+        raise RuntimeError('Could not verify the working VMD test module.')
+    if Path('/sys/module/module/parameters/sig_enforce').read_text().strip() != 'N':
+        raise RuntimeError('The module signature policy has changed; stopped without modifying the policy.')
+    if not set(OPTIONS).issubset(shlex.split(Path('/proc/cmdline').read_text())):
+        raise RuntimeError('A normal boot with the configured security parameters was expected.')
+    if shutil.disk_usage('/var/backups').free < 2 * 1024**3:
+        raise RuntimeError('Not enough space for preparation and extraction verification.')
+    stage = Path('/var/backups/vmd-usbc-test') / datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
+    stage.mkdir(parents=True, mode=0o700)
+    print('Preparation directory only: ' + str(stage), flush=True)
+    watched = [Path('/boot/grub/grub.cfg'), Path('/boot/initrd.img-' + KERNEL),
+               Path('/boot/initrd.img-' + KERNEL + '-vmd-test'),
+               Path('/boot/vmlinuz-' + KERNEL),
+               Path('/etc/default/grub'), Path('/etc/grub.d/43_expertbook_vmd_test'),
+               Path('/etc/default/grub.d/90-expertbook-hardening.cfg'),
+               Path('/etc/default/grub.d/95-expertbook-boot.cfg'),
+               Path('/lib/modules')/KERNEL/'kernel/drivers/pci/controller/vmd.ko.xz',
+               Path('/lib/modules')/KERNEL/'kernel/drivers/usb/typec/ucsi/typec_ucsi.ko.xz',
+               Path('/lib/modules')/KERNEL/'kernel/drivers/usb/typec/ucsi/ucsi_acpi.ko.xz',
+               Path('/etc/initramfs-tools/modules'),
+               Path('/etc/tlp.d/90-expertbook-b3405.conf')]
+    hashes = {str(p): sha(p) for p in watched}
+    shutil.copy2(MODULE, stage/'typec_ucsi.ko')
+    shutil.copy2(BASE/'build-patched/ucsi.c', stage/'ucsi.c')
+    shutil.copy2(BASE/'combined-test.patch', stage/'backport.patch')
+    shutil.copy2(BASE/'upstream-sources.json', stage/'upstream-sources.json')
+    shutil.copy2(BASE/'build-verification.json', stage/'build-verification.json')
+    shutil.copy2(VMD_MODULE, stage/'vmd.ko.xz')
+    if sha(stage/'vmd.ko.xz') != VMD_SHA:
+        raise RuntimeError('Could not verify the copied VMD module.')
+    sign = Path('/usr/src')/('linux-headers-'+KERNEL)/'scripts/sign-file'
+    key = Path('/var/lib/dkms/mok.key')
+    cert = Path('/var/lib/dkms/mok.pub')
+    if not all(p.is_file() for p in (sign, key, cert)):
+        raise RuntimeError('The existing DKMS signing tool or key was not found; preparation stopped without using an unsigned module.')
+    run(str(sign), 'sha256', str(key), str(cert), str(stage/'typec_ucsi.ko'))
+    signer = run('modinfo', '-F', 'signer', str(stage/'typec_ucsi.ko')).strip()
+    if not signer or run('modinfo','-F','version',str(stage/'typec_ucsi.ko')).strip() != VERSION:
+        raise RuntimeError('Could not verify the module version or signature metadata.')
+    # Signing reuses the machine's existing DKMS key; no key is enrolled,
+    # no signature policy is changed, and no module is loaded.
+    # Match Debian's CRC32 XZ module format for the kernel decompressor.
+    compressed = lzma.compress((stage/'typec_ucsi.ko').read_bytes(), preset=6,
+                               check=lzma.CHECK_CRC32)
+    if compressed[7] != 1:
+        raise RuntimeError('The module XZ checksum format is not CRC32.')
+    (stage/'typec_ucsi.ko.xz').write_bytes(compressed)
+    conf = stage/'initramfs-tools'
+    shutil.copytree('/etc/initramfs-tools', conf, symlinks=True)
+    # Preload only the UCSI core so rootfs udev uses the test core too.
+    # The hardware backend ucsi_acpi keeps its existing discovery order.
+    with (conf/'modules').open('a') as handle:
+        handle.write('\n# Optional test image only: preserve the selected UCSI core.\ntypec_ucsi\n')
+    hooks = conf/'hooks'; hooks.mkdir(exist_ok=True)
+    hook = hooks/'zz-expertbook-vmd-usbc-test'
+    hook.write_text('''#!/bin/sh
+set -eu
+case "${1:-}" in prereqs) exit 0 ;; esac
+test "$version" = ''' + shlex.quote(KERNEL) + '''
+target="$DESTDIR/usr/lib/modules/$version/kernel/drivers/usb/typec/ucsi/typec_ucsi.ko.xz"
+test -f "$target"
+install -m 0644 ''' + shlex.quote(str(stage/'typec_ucsi.ko.xz')) + ''' "$target"
+target="$DESTDIR/usr/lib/modules/$version/kernel/drivers/pci/controller/vmd.ko.xz"
+test -f "$target"
+install -m 0644 ''' + shlex.quote(str(stage/'vmd.ko.xz')) + ''' "$target"
+''')
+    hook.chmod(0o755)
+    run('/bin/sh', '-n', str(hook))
+    initrd = stage/'initrd-vmd-usbc-test'
+    print('Preparing a separate initramfs; existing /boot files are not being modified.', flush=True)
+    (stage/'mkinitramfs.log').write_text(run('mkinitramfs','-d',str(conf),'-o',str(initrd),KERNEL))
+    listing = run('lsinitramfs',str(initrd))
+    (stage/'contents.txt').write_text(listing)
+    for name in ('nvme','nvme-core','vmd','ext4','mei-me','mei_gsc_proxy','typec_ucsi','typec','roles','usb-common'):
+        if not re.search(r'/'+re.escape(name)+r'\.ko(?:\.(?:xz|gz|zst))?$',listing,re.M):
+            raise RuntimeError('Required module missing: '+name)
+    unpack = stage/'unpacked'
+    run('unmkinitramfs',str(initrd),str(unpack))
+    matches = list(unpack.rglob('typec_ucsi.ko.xz'))
+    if len(matches) != 1 or sha(matches[0]) != sha(stage/'typec_ucsi.ko.xz'):
+        raise RuntimeError('Could not verify the test driver in the initramfs.')
+    vmd_matches = list(unpack.rglob('vmd.ko.xz'))
+    if len(vmd_matches) != 1 or sha(vmd_matches[0]) != VMD_SHA:
+        raise RuntimeError('The VMD fix was not preserved in the initramfs.')
+    if run('modinfo','-F','version',str(vmd_matches[0])).strip() != VMD_VERSION:
+        raise RuntimeError('The VMD version differs.')
+    module_lists = list(unpack.glob('*/conf/modules'))
+    if len(module_lists) != 1:
+        raise RuntimeError('The early module loading list was not found.')
+    early_modules = [line.split()[0] for line in module_lists[0].read_text().splitlines()
+                     if line.strip() and not line.lstrip().startswith('#')]
+    if early_modules.count('typec_ucsi') != 1 or 'ucsi_acpi' in early_modules:
+        raise RuntimeError('The USB-C module loading order differs from the expected order.')
+    # The only changed module bytes must be the two reviewed test modules.
+    compared_modules = 0
+    module_root = matches[0].parents[5]
+    if module_root.name != KERNEL:
+        raise RuntimeError('The extracted module directory differs from the expected layout.')
+    for module in module_root.rglob('*.ko*'):
+        if not module.is_file() or module.name in ('vmd.ko.xz','typec_ucsi.ko.xz'):
+            continue
+        installed = Path('/lib/modules')/KERNEL/module.relative_to(module_root)
+        if not installed.is_file() or sha(module) != sha(installed):
+            raise RuntimeError('Unexpected change to another module: '+str(module))
+        compared_modules += 1
+    menu = Path('/boot/grub/grub.cfg').read_text()
+    lines = menu.splitlines()
+    start = next(i for i,line in enumerate(lines) if line.startswith('menuentry '))
+    end = next(i for i in range(start+1,len(lines)) if lines[i] == '}')
+    original = '\n'.join(lines[start:end+1])+'\n'
+    entry = '\n'.join(["menuentry 'Debian - VMD + USB-C test (security preserved)' --id expertbook-vmd-usbc-test {",*lines[start+1:end],'}',''])
+    linux = [shlex.split(line) for line in entry.splitlines() if re.match(r'^\s*linux(?:efi)?\s+',line)]
+    if len(linux)!=1 or linux[0][1]!='/boot/vmlinuz-'+KERNEL or not set(OPTIONS).issubset(linux[0]):
+        raise RuntimeError('Could not verify the kernel or security parameters of the test entry.')
+    old_initrd = '/boot/initrd.img-'+KERNEL
+    if entry.count(old_initrd)!=1:
+        raise RuntimeError('Unexpected initramfs entry.')
+    entry = entry.replace(old_initrd,IMAGE)
+    (stage/'test-entry.cfg').write_text(entry)
+    run('grub-script-check',str(stage/'test-entry.cfg'))
+    script = ('#!/bin/sh\n# Optional VMD + UCSI notification retry test; no change to the default entry.\n'
+              +'test -f '+shlex.quote('/boot/vmlinuz-'+KERNEL)+' || exit 0\n'
+              +'test -f '+shlex.quote(IMAGE)+' || exit 0\n'
+              +"cat <<'EXPERTBOOK_VMD_USBC_TEST_EOF'\n"+entry+'EXPERTBOOK_VMD_USBC_TEST_EOF\n')
+    (stage/'44_expertbook_vmd_usbc_test').write_text(script)
+    run('/bin/sh','-n',str(stage/'44_expertbook_vmd_usbc_test'))
+    for path,expected in hashes.items():
+        if sha(path)!=expected:
+            raise RuntimeError('A protected system file has changed: '+path)
+    (stage/'kernel-before.txt').write_text(run('dmesg','--color=never'))
+    (stage/'boot-time.txt').write_text(run('systemd-analyze','time'))
+    result={'stage':str(stage),'kernel':KERNEL,'module_version':VERSION,'signer':signer,
+            'initramfs_sha256':sha(initrd),'module_sha256':sha(stage/'typec_ucsi.ko.xz'),
+            'vmd_module_sha256':VMD_SHA,'vmd_module_version':VMD_VERSION,
+            'other_module_hashes_checked':compared_modules,'early_modules':early_modules,
+            'signature_policy_unchanged':True,
+            'menu_script_sha256':sha(stage/'44_expertbook_vmd_usbc_test'),
+            'protected_sha256':hashes,'security_options':OPTIONS,
+            'original_entry':original,'test_image_destination':IMAGE,
+            'installed':False,'runtime_tested':False,'default_boot_unchanged':True}
+    (stage/'verification.json').write_text(json.dumps(result,indent=2)+'\n')
+    # Only the small review report and menu preview are made user-readable.
+    for name,data in [('prepared.json',json.dumps(result,indent=2)+'\n'),('test-entry.cfg',entry)]:
+        target=BASE/name
+        if target.is_symlink(): raise RuntimeError('The report destination is a symbolic link: '+str(target))
+        target.write_text(data); target.chmod(0o600); os.chown(target, 0, 0)
+    print(json.dumps({k:v for k,v in result.items() if k not in ('protected_sha256','original_entry','security_options')},indent=2),flush=True)
+    print('Prepared and verified; the test boot entry was not installed and no driver was loaded.',flush=True)
+
+
+if __name__=='__main__':
+    try: main()
+    except Exception as error:
+        print('Error: '+str(error),file=sys.stderr); sys.exit(1)

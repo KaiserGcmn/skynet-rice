@@ -1,0 +1,6 @@
+# ESP32 boards with native USB: let the logged-in user flash and debug them.
+# 303a = Espressif (ROM bootloader/DFU, USB-Serial-JTAG: S2, S3, C3, C6, H2, P4).
+# 2341:0070 and 2341:0470 = Arduino Nano ESP32 (bootloader and sketch).
+# CH340, CP210x and FTDI bridges need nothing here; their ttys already belong to dialout.
+SUBSYSTEM=="usb", ATTR{idVendor}=="303a", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="2341", ATTR{idProduct}=="0070|0470", TAG+="uaccess"

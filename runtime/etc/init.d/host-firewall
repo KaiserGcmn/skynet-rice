@@ -1,0 +1,27 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          host-firewall
+# Required-Start:    $local_fs
+# Required-Stop:     $local_fs
+# X-Start-Before:    networking network-manager
+# Default-Start:     S
+# Default-Stop:      0 6
+# Short-Description: SKYNET host firewall, preserving other applications' tables
+### END INIT INFO
+set -eu
+case "${1:-}" in
+    start|restart|reload|force-reload)
+        /usr/sbin/nft --check --file /etc/nftables.conf
+        /usr/sbin/nft --file /etc/nftables.conf
+        ;;
+    stop)
+        /usr/sbin/nft destroy table inet expertbook_host
+        ;;
+    status)
+        /usr/sbin/nft list table inet expertbook_host
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|reload|force-reload|status}" >&2
+        exit 2
+        ;;
+esac

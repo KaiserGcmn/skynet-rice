@@ -1,0 +1,321 @@
+--- a/main.c
++++ b/main.c
+@@ -71,6 +71,7 @@
+ #include "version.h"        // for git_version
+ #include "wait_pgrp.h"      // for WaitPgrp
+ #include "wm_properties.h"  // for SetWMProperties
++#include "power_button.h"
+ 
+ /*! \brief How often (in times per second) to watch child processes.
+  *
+@@ -102,7 +103,7 @@
+  * Note that proper use of this also would require a way to forward click
+  * events to the auth helper, which doesn't exist yet.
+  */
+-#undef SHOW_CURSOR_DURING_AUTH
++#define SHOW_CURSOR_DURING_AUTH
+ 
+ /*! \brief Exhaustive list of all mouse related X11 events.
+  *
+@@ -146,6 +147,8 @@
+ int debug_window_info = 0;
+ //! If nonnegative, the time in seconds till we blank the screen explicitly.
+ int blank_timeout = -1;
++//! Opt-in inactivity blanking while authentication remains securely active.
++int blank_while_auth = 0;
+ //! The DPMS state to switch the screen to when blanking.
+ const char *blank_dpms_state = "off";
+ //! Whether to reset the saver module when auth closes.
+@@ -332,11 +335,11 @@
+   WatchSaverChild(dpy, saver_win, 0, saver_executable,
+                   state != WATCH_CHILDREN_SAVER_DISABLED);
+ 
+-  if (auth_running) {
+-    // While auth is running, we never blank.
++  if (auth_running && !blank_while_auth) {
++    // Preserve upstream behavior unless locked-screen idle blanking is enabled.
+     UnblankScreen(dpy);
+   } else {
+-    // If no auth is running, permit blanking as per timer.
++    // Blanking only changes display power; authentication and grabs stay active.
+     MaybeBlankScreen(dpy);
+   }
+ 
+@@ -350,6 +353,7 @@
+  */
+ int WakeUp(Display *dpy, Window auth_win, Window saver_win,
+            const char *stdinbuf) {
++  if (blank_while_auth) UnblankScreen(dpy);
+   return WatchChildren(dpy, auth_win, saver_win, WATCH_CHILDREN_FORCE_AUTH,
+                        stdinbuf);
+ }
+@@ -439,6 +443,7 @@
+   force_grab = GetIntSetting("XSECURELOCK_FORCE_GRAB", 0);
+   debug_window_info = GetIntSetting("XSECURELOCK_DEBUG_WINDOW_INFO", 0);
+   blank_timeout = GetIntSetting("XSECURELOCK_BLANK_TIMEOUT", 600);
++  blank_while_auth = GetIntSetting("XSECURELOCK_BLANK_WHILE_AUTH", 0);
+   blank_dpms_state = GetStringSetting("XSECURELOCK_BLANK_DPMS_STATE", "off");
+   saver_reset_on_auth_close =
+       GetIntSetting("XSECURELOCK_SAVER_RESET_ON_AUTH_CLOSE", 0);
+@@ -812,7 +817,7 @@
+   }
+ 
+   // My windows.
+-  Window my_windows[4];
++  Window my_windows[5];
+   unsigned int n_my_windows = 0;
+ 
+   // Who's the root?
+@@ -941,6 +946,7 @@
+                     InputOutput, CopyFromParent, CWBackPixel, &coverattrs);
+   SetWMProperties(display, auth_window, "xsecurelock", "auth", argc, argv);
+   my_windows[n_my_windows++] = auth_window;
++  my_windows[n_my_windows++] = PowerButtonInit(display, background_window, w, h);
+ 
+ // Let's get notified if we lose visibility, so we can self-raise.
+ #ifdef HAVE_XCOMPOSITE_EXT
+@@ -1212,6 +1218,8 @@
+ #endif
+ #endif
+ 
++    PowerButtonPoll(display, auth_window);
++
+     // Take care of zombies.
+     if (notify_command_pid != 0) {
+       int status;
+@@ -1241,6 +1249,20 @@
+         // If an input method ate the event, ignore it.
+         continue;
+       }
++      const int event_was_blanked = blanked;
++      // Count genuine X server activity, including power-button events, without
++      // forwarding any input or changing authentication or input grabs.
++      if (blank_while_auth && !priv.ev.xany.send_event &&
++          (priv.ev.type == KeyPress || priv.ev.type == KeyRelease ||
++           priv.ev.type == ButtonPress || priv.ev.type == ButtonRelease ||
++           priv.ev.type == MotionNotify)) {
++        UnblankScreen(display);
++      }
++      // A click that merely wakes a dark screen must not activate a power action.
++      if (PowerButtonEvent(display, &priv.ev,
++                           auth_window_mapped && !event_was_blanked)) {
++        continue;
++      }
+       switch (priv.ev.type) {
+         case ConfigureNotify:
+ #ifdef DEBUG_EVENTS
+@@ -1252,6 +1274,7 @@
+             // Root window size changed. Adjust the saver_window window too!
+             w = priv.ev.xconfigure.width;
+             h = priv.ev.xconfigure.height;
++            PowerButtonPlace(display, w, h);
+ #ifdef DEBUG_EVENTS
+             Log("DisplayWidthHeight %d %d", w, h);
+ #endif
+@@ -1363,6 +1386,14 @@
+               have_key = 0;
+             }
+           }
++          if ((priv.keysym == XK_F11 || priv.keysym == XK_F12) &&
++              !priv.ev.xkey.send_event) {
++            const int action = priv.keysym == XK_F11 ? POWER_REBOOT :
++                                                      POWER_SHUTDOWN;
++            explicit_bzero(&priv, sizeof(priv));
++            PowerButtonRequest(display, action);
++            break;
++          }
+           if (have_key && (size_t)priv.len >= sizeof(priv.buf)) {
+             // Detect possible overruns. This should be unreachable.
+             Log("Received invalid length from XLookupString: %d", priv.len);
+--- /dev/null
++++ b/power_button.h
+@@ -0,0 +1,189 @@
++/* Local power controls. The existing keyboard/pointer grabs and PAM helpers
++ * remain responsible for locking and authentication. No input is forwarded
++ * to desktop windows and these controls never unlock the session. */
++#include <errno.h>
++#include <sys/wait.h>
++#ifdef HAVE_XRANDR_EXT
++#include <X11/extensions/Xrandr.h>
++#endif
++
++enum { POWER_REBOOT, POWER_SHUTDOWN, POWER_ACTION_COUNT };
++static Window power_button_window;
++static GC power_button_gc;
++static XFontStruct *power_button_font;
++static int power_button_x, power_button_y;
++static int power_local_x[POWER_ACTION_COUNT], power_local_y[POWER_ACTION_COUNT];
++static const unsigned int power_button_width = 240, power_button_height = 54;
++static int power_button_pressed = -1, power_pending_action = -1;
++static int power_button_status[POWER_ACTION_COUNT];
++static pid_t power_button_pid;
++static unsigned long power_button_foreground, power_button_border;
++static unsigned long power_button_background;
++
++static unsigned long PowerButtonColor(Display *dpy, const char *name) {
++  XColor color, exact;
++  if (XAllocNamedColor(dpy, DefaultColormap(dpy, DefaultScreen(dpy)), name,
++                      &color, &exact)) return color.pixel;
++  return WhitePixel(dpy, DefaultScreen(dpy));
++}
++
++static void PowerButtonPlace(Display *dpy, int width, int height) {
++  int left = 0, top = 0;
++#ifdef HAVE_XRANDR_EXT
++  int count = 0;
++  XRRMonitorInfo *monitors = XRRGetMonitors(dpy, DefaultRootWindow(dpy), True,
++                                          &count);
++  if (monitors && count > 0) {
++    int chosen = 0;
++    for (int i = 0; i < count; ++i)
++      if (monitors[i].primary) { chosen = i; break; }
++    left = monitors[chosen].x;
++    top = monitors[chosen].y;
++    width = monitors[chosen].width;
++    height = monitors[chosen].height;
++  }
++  if (monitors) XRRFreeMonitors(monitors);
++#endif
++  const int horizontal = width >= (int)(2 * power_button_width + 12 + 56);
++  const unsigned int panel_width = horizontal ? 2 * power_button_width + 12 :
++                                                power_button_width;
++  const unsigned int panel_height = horizontal ? power_button_height :
++                                                2 * power_button_height + 12;
++  power_local_x[POWER_SHUTDOWN] = horizontal ? power_button_width + 12 : 0;
++  power_local_y[POWER_SHUTDOWN] = horizontal ? 0 : power_button_height + 12;
++  power_button_x = left + width - (int)panel_width - 28;
++  power_button_y = top + height - (int)panel_height - 28;
++  if (power_button_x < left) power_button_x = left;
++  if (power_button_y < top) power_button_y = top;
++  power_button_pressed = -1;
++  XMoveResizeWindow(dpy, power_button_window, power_button_x, power_button_y,
++                    panel_width, panel_height);
++}
++
++static void PowerButtonDraw(Display *dpy) {
++  static const char *labels[POWER_ACTION_COUNT][3] = {
++    {"Reboot [F11]", "Rebooting...", "Reboot blocked"},
++    {"Shut down [F12]", "Shutting down...", "Shutdown blocked"}
++  };
++  XClearWindow(dpy, power_button_window);
++  for (int action = 0; action < POWER_ACTION_COUNT; ++action) {
++    const int x = power_local_x[action], y = power_local_y[action];
++    const char *label = labels[action][power_button_status[action]];
++    XSetForeground(dpy, power_button_gc, power_button_background);
++    XFillRectangle(dpy, power_button_window, power_button_gc, x, y,
++                    power_button_width, power_button_height);
++    XSetForeground(dpy, power_button_gc, power_button_border);
++    XSetLineAttributes(dpy, power_button_gc, 1, LineSolid, CapRound, JoinRound);
++    XDrawRectangle(dpy, power_button_window, power_button_gc, x, y,
++                   power_button_width - 1, power_button_height - 1);
++    XSetForeground(dpy, power_button_gc, power_button_foreground);
++    XSetLineAttributes(dpy, power_button_gc, 2, LineSolid, CapRound, JoinRound);
++    if (action == POWER_REBOOT) {
++      XDrawArc(dpy, power_button_window, power_button_gc, x + 19, y + 18,
++               18, 18, 45 * 64, 300 * 64);
++      XDrawLine(dpy, power_button_window, power_button_gc,
++                x + 35, y + 18, x + 35, y + 25);
++      XDrawLine(dpy, power_button_window, power_button_gc,
++                x + 35, y + 25, x + 28, y + 25);
++    } else {
++      XDrawArc(dpy, power_button_window, power_button_gc, x + 19, y + 18,
++               17, 17, 130 * 64, 280 * 64);
++      XDrawLine(dpy, power_button_window, power_button_gc,
++                x + 28, y + 14, x + 28, y + 25);
++    }
++    XDrawString(dpy, power_button_window, power_button_gc, x + 51, y + 33,
++                label, (int)strlen(label));
++  }
++}
++
++static Window PowerButtonInit(Display *dpy, Window background, int w, int h) {
++  power_button_window = XCreateSimpleWindow(
++      dpy, background, 0, 0, 2 * power_button_width + 12, power_button_height,
++      0, 0, BlackPixel(dpy, DefaultScreen(dpy)));
++  XStoreName(dpy, power_button_window, "xsecurelock-power-button");
++  XSelectInput(dpy, power_button_window, ExposureMask);
++  power_button_gc = XCreateGC(dpy, power_button_window, 0, NULL);
++  power_button_foreground = PowerButtonColor(dpy, "#f1f4f8");
++  power_button_border = PowerButtonColor(dpy, "#8299ad");
++  power_button_background = PowerButtonColor(dpy, "#202a34");
++  power_button_font = XLoadQueryFont(dpy, "9x15bold");
++  if (!power_button_font) power_button_font = XLoadQueryFont(dpy, "fixed");
++  if (power_button_font)
++    XSetFont(dpy, power_button_gc, power_button_font->fid);
++  PowerButtonPlace(dpy, w, h);
++  XMapWindow(dpy, power_button_window);
++  return power_button_window;
++}
++
++static void PowerButtonRequest(Display *dpy, int action) {
++  if (action < 0 || action >= POWER_ACTION_COUNT || power_pending_action >= 0)
++    return;
++  const char *verb = action == POWER_REBOOT ? "reboot" : "poweroff";
++  if (GetIntSetting("XSECURELOCK_POWER_TEST", 0)) {
++    Log("POWER_BUTTON_TEST: normal %s requested; no action executed", verb);
++    return;
++  }
++  pid_t pid = ForkWithoutSigHandlers();
++  if (pid == 0) {
++    /* The power child must not retain X11 or authentication pipe FDs. */
++    closefrom(3);
++    execl("/usr/bin/systemctl", "systemctl", "--no-ask-password",
++          "--check-inhibitors=yes", verb, (char *)NULL);
++    _exit(127);
++  }
++  power_button_pid = pid > 0 ? pid : 0;
++  power_pending_action = pid > 0 ? action : -1;
++  power_button_status[action] = pid > 0 ? 1 : 2;
++  PowerButtonDraw(dpy);
++}
++
++static void PowerButtonPoll(Display *dpy, Window auth) {
++  /* Stay above the saver and below authentication, never covering the prompt. */
++  XWindowChanges position = {.sibling = auth, .stack_mode = Below};
++  XConfigureWindow(dpy, power_button_window, CWSibling | CWStackMode, &position);
++  if (power_button_pid > 0) {
++    int status = 0;
++    const pid_t result = waitpid(power_button_pid, &status, WNOHANG);
++    if (result == power_button_pid || (result < 0 && errno == ECHILD)) {
++      power_button_pid = 0;
++      if (result < 0 || !WIFEXITED(status) || WEXITSTATUS(status) != 0) {
++        power_button_status[power_pending_action] = 2;
++        power_pending_action = -1;
++        Log("Power action was refused or failed; keeping the screen locked");
++        PowerButtonDraw(dpy);
++      }
++    }
++  }
++}
++
++static int PowerButtonAt(int x, int y) {
++  for (int action = 0; action < POWER_ACTION_COUNT; ++action) {
++    const int left = power_button_x + power_local_x[action];
++    const int top = power_button_y + power_local_y[action];
++    if (x >= left && y >= top && x < left + (int)power_button_width &&
++        y < top + (int)power_button_height) return action;
++  }
++  return -1;
++}
++
++static int PowerButtonEvent(Display *dpy, const XEvent *event, int auth_visible) {
++  if (event->type == Expose && event->xexpose.window == power_button_window) {
++    PowerButtonDraw(dpy);
++    return 1;
++  }
++  if (event->xany.send_event) return 0;
++  if (event->type == ButtonPress && event->xbutton.button == Button1) {
++    power_button_pressed = auth_visible ?
++        PowerButtonAt(event->xbutton.x_root, event->xbutton.y_root) : -1;
++    return power_button_pressed >= 0;
++  }
++  if (event->type == ButtonRelease && event->xbutton.button == Button1) {
++    const int pressed = power_button_pressed;
++    power_button_pressed = -1;
++    if (pressed >= 0 && auth_visible &&
++        PowerButtonAt(event->xbutton.x_root, event->xbutton.y_root) == pressed)
++      PowerButtonRequest(dpy, pressed);
++    return pressed >= 0;
++  }
++  return 0;
++}

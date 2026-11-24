@@ -1,0 +1,40 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          nvme-shutdown-audit
+# Required-Start:    $local_fs $syslog
+# Required-Stop:     $local_fs
+# Should-Start:      smartmontools
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 6
+# Short-Description: Record which shutdown raised the NVMe unsafe counter
+# Description:       Read-only SMART check. Stop stores the shutdown kind
+#                    while / is writable; start logs one verdict per boot.
+### END INIT INFO
+
+HELPER=/usr/local/libexec/nvme-shutdown-audit
+[ -x "$HELPER" ] || exit 0
+
+case "$1" in
+	start)
+		setsid "$HELPER" --boot </dev/null >/dev/null 2>&1 &
+		;;
+	stop)
+		# Only a real runlevel change is a shutdown; a manual stop is not.
+		level="${RUNLEVEL:-}"
+		[ -n "$level" ] || level="$(runlevel 2>/dev/null | cut -d' ' -f2)"
+		case "$level" in
+			0) "$HELPER" --record-stop poweroff ;;
+			6) "$HELPER" --record-stop reboot ;;
+		esac
+		;;
+	restart|force-reload)
+		;;
+	status)
+		"$HELPER" --status
+		;;
+	*)
+		echo "Usage: $0 {start|stop|status}" >&2
+		exit 3
+		;;
+esac
+exit 0

@@ -1,0 +1,208 @@
+#!/usr/bin/python3
+"""Install reviewed boot options and retain a previous-settings boot entry."""
+import argparse
+import datetime
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+
+SOURCE = Path('/usr/local/share/expertbook/grub/90-expertbook-hardening.cfg')
+TARGET = Path('/etc/default/grub.d/90-expertbook-hardening.cfg')
+FALLBACK = Path('/etc/grub.d/42_expertbook_previous')
+MENU = Path('/boot/grub/grub.cfg')
+OPTIONS = ('slab_nomerge init_on_alloc=1 page_alloc.shuffle=1 '
+           'randomize_kstack_offset=on vsyscall=none iommu.passthrough=0 '
+           'efi=disable_early_pci_dma nmi_watchdog=0 loglevel=3').split()
+
+
+def run(*args, **kwargs):
+    return subprocess.run(args, check=True, text=True, capture_output=True, **kwargs)
+
+
+def linux_lines(text):
+    return [shlex.split(line.strip()) for line in text.splitlines()
+            if re.match(r'^\s*linux(?:efi)?\s+', line)]
+
+
+def effective_defaults():
+    script = '''. /etc/default/grub
+for grub_fragment in /etc/default/grub.d/*.cfg; do
+    [ -f "$grub_fragment" ] || continue
+    [ "$grub_fragment" = /etc/default/grub.d/90-expertbook-hardening.cfg ] && continue
+    . "$grub_fragment"
+done
+printf '%s\\n' "$GRUB_CMDLINE_LINUX" "$GRUB_CMDLINE_LINUX_DEFAULT" "$GRUB_TIMEOUT"
+'''
+    values = run('/bin/sh', '-c', script).stdout.splitlines()
+    if values not in (['', 'quiet', '5'], ['', 'quiet', '3']):
+        raise RuntimeError('The base GRUB settings differ from the inspected state: ' + repr(values))
+
+
+def preflight():
+    if Path('/sys/class/dmi/id/product_name').read_text().strip() != 'ASUS EXPERTBOOK B3405CCA':
+        raise RuntimeError('This configuration was prepared for the inspected ASUS model.')
+    if not Path('/sys/firmware/efi').is_dir():
+        raise RuntimeError('A UEFI boot was expected.')
+    config = (Path('/boot') / ('config-' + os.uname().release)).read_text()
+    for key in ('CONFIG_SHUFFLE_PAGE_ALLOCATOR', 'CONFIG_RANDOMIZE_KSTACK_OFFSET',
+                'CONFIG_INTEL_IOMMU', 'CONFIG_EFI_STUB', 'CONFIG_SECURITY_APPARMOR', 'CONFIG_IA32_EMULATION'):
+        if key + '=y\n' not in config:
+            raise RuntimeError('Required kernel support was not found: ' + key)
+    if not list(Path('/sys/kernel/iommu_groups').glob('[0-9]*')):
+        raise RuntimeError('Active IOMMU groups were not found.')
+    run('/bin/sh', '-n', str(SOURCE))
+    effective_defaults()
+    result = run('/bin/sh', '-c', '. "$1"; printf "%s\\n" "$GRUB_CMDLINE_LINUX_DEFAULT"',
+                 'grub-payload-check', str(SOURCE), env=dict(os.environ, GRUB_CMDLINE_LINUX_DEFAULT='quiet'))
+    if shlex.split(result.stdout) != ['quiet'] + OPTIONS:
+        raise RuntimeError('Could not verify the prepared kernel parameters.')
+    for path in (TARGET, FALLBACK, MENU):
+        if path.is_symlink() or path.parent.is_symlink():
+            raise RuntimeError('Unexpected symbolic link: ' + str(path))
+    if TARGET.exists() and TARGET.read_bytes() != SOURCE.read_bytes():
+        raise RuntimeError('A different GRUB setting with the same name already exists; it was not overwritten.')
+
+
+def make_fallback(old_menu):
+    lines = old_menu.splitlines()
+    start = next(i for i, line in enumerate(lines) if line.startswith('menuentry '))
+    end = next(i for i in range(start + 1, len(lines)) if lines[i] == '}')
+    entry = '\n'.join([
+        "menuentry 'Debian - previous settings (ExpertBook)' --id expertbook-previous-settings {",
+        *lines[start + 1:end], '}', '',
+    ])
+    boots = linux_lines(entry)
+    if len(boots) != 1 or set(OPTIONS) & set(boots[0]):
+        raise RuntimeError('Could not verify the boot entry with the previous settings.')
+    # This machine stores /boot on its root filesystem. Refuse to write a
+    # fallback entry whose kernel or initramfs is absent from that filesystem.
+    paths = [boots[0][1]]
+    for line in entry.splitlines():
+        if re.match(r'^\s*initrd(?:efi)?\s+', line):
+            paths.extend(shlex.split(line)[1:])
+    if len(paths) < 2 or not all(Path(path).is_file() for path in paths):
+        raise RuntimeError('The fallback kernel or initramfs file was not found: ' + repr(paths))
+    guard = ''.join('test -f ' + shlex.quote(path) + ' || exit 0\n' for path in paths)
+    return ('#!/bin/sh\n# Snapshot of the previous normal boot entry.\n' + guard
+            + "cat <<'EXPERTBOOK_PREVIOUS_BOOT_EOF'\n" + entry + 'EXPERTBOOK_PREVIOUS_BOOT_EOF\n')
+
+
+def verify_menu(text, root_token):
+    boots = linux_lines(text)
+    normal = [line for line in boots if set(OPTIONS).issubset(line)]
+    previous = [line for line in boots if not set(OPTIONS) & set(line) and 'single' not in line and 'recovery' not in line]
+    recovery = [line for line in boots if 'single' in line or 'recovery' in line]
+    running_kernel = '/boot/vmlinuz-' + os.uname().release
+    if not normal or not previous or not recovery or 'expertbook-previous-settings' not in text:
+        raise RuntimeError('Could not find the normal, previous and recovery boot entries.')
+    if not any(line[1] == running_kernel for line in normal):
+        raise RuntimeError('The running kernel was not found in the new boot menu.')
+    for line in boots:
+        if root_token not in line:
+            raise RuntimeError('The root filesystem parameter differs from the expected value.')
+        if any(arg.startswith(('ia32_emulation=', 'lsm=', 'intel_iommu=', 'pti=',
+                               'debugfs=', 'random.trust_')) for arg in line):
+            raise RuntimeError('The menu contains a parameter that was not selected for this device.')
+        if 'nowatchdog' in line:
+            raise RuntimeError('The software lockup detector must not be disabled.')
+    for line in recovery:
+        if set(OPTIONS) & set(line):
+            raise RuntimeError('The new parameters were propagated to the recovery entry.')
+    return {'normal_entries': len(normal), 'previous_entries': len(previous),
+            'recovery_entries': len(recovery), 'kernel': os.uname().release,
+            'next_boot_options': 'quiet ' + ' '.join(OPTIONS)}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--apply', action='store_true')
+    args = parser.parse_args()
+    os.environ.update(PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', LC_ALL='C')
+    preflight()
+    print('Hardware, kernel support and GRUB parameter syntax were verified.', flush=True)
+    print('Yeni parametreler: quiet ' + ' '.join(OPTIONS), flush=True)
+    if not args.apply:
+        return
+    if os.geteuid() != 0:
+        raise RuntimeError('System administrator authentication is required for --apply.')
+    if not os.access(MENU.parent, os.W_OK):
+        raise RuntimeError('The GRUB directory is not writable.')
+    run('/usr/bin/grub-script-check', str(MENU))
+    old_menu = MENU.read_text()
+    root_token = next(arg for arg in shlex.split(Path('/proc/cmdline').read_text()) if arg.startswith('root='))
+    fallback_text = FALLBACK.read_text() if FALLBACK.exists() else make_fallback(old_menu)
+    if FALLBACK.exists() and 'expertbook-previous-settings' not in fallback_text:
+        raise RuntimeError('A different rollback script with the same name already exists.')
+    backup = Path('/var/backups/grub-expertbook') / datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
+    backup.mkdir(mode=0o700, parents=True)
+    manifest = {}
+    for index, target in enumerate((MENU, TARGET, FALLBACK)):
+        saved = backup / ('file-' + str(index))
+        manifest[str(target)] = str(saved) if target.exists() else None
+        if target.exists():
+            shutil.copy2(target, saved)
+    (backup / 'manifest.json').write_text(json.dumps(manifest, indent=2))
+    shutil.copy2('/etc/default/grub', backup / 'default-grub')
+    shutil.copytree('/etc/default/grub.d', backup / 'grub.d')
+    (backup / 'cmdline-before.txt').write_text(Path('/proc/cmdline').read_text())
+    (backup / 'lsm-before.txt').write_text(Path('/sys/kernel/security/lsm').read_text())
+    protected = [Path('/etc/default/grub'), Path('/etc/greetd/config.toml'),
+                 Path('/etc/tlp.d/90-expertbook-b3405.conf')]
+    hashes = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in protected}
+    print('Yedek: ' + str(backup), flush=True)
+    try:
+        staged_fallback = backup / '42_expertbook_previous'
+        staged_fallback.write_text(fallback_text)
+        run('/bin/sh', '-n', str(staged_fallback))
+        run('install', '-o', 'root', '-g', 'root', '-m', '644', str(SOURCE), str(TARGET))
+        run('install', '-o', 'root', '-g', 'root', '-m', '755', str(staged_fallback), str(FALLBACK))
+        # Generate into the root-only backup first. The live boot menu changes
+        # only after GRUB syntax and all kernel/root/fallback entries pass.
+        generated = backup / 'new-grub.cfg'
+        result = run('/usr/sbin/grub-mkconfig', '-o', str(generated))
+        (backup / 'generation.log').write_text(result.stdout + result.stderr)
+        run('/usr/bin/grub-script-check', str(generated))
+        verification = verify_menu(generated.read_text(), root_token)
+        for name, digest in hashes.items():
+            if hashlib.sha256(Path(name).read_bytes()).hexdigest() != digest:
+                raise RuntimeError('An unrelated configuration file has changed: ' + name)
+        temporary = MENU.with_name('grub.cfg.expertbook-new')
+        if temporary.exists() or temporary.is_symlink():
+            raise RuntimeError('The temporary GRUB file already exists; it was not overwritten.')
+        try:
+            run('install', '-o', 'root', '-g', 'root', '-m', '600', str(generated), str(temporary))
+            with temporary.open('rb') as handle:
+                os.fsync(handle.fileno())
+            os.replace(temporary, MENU)
+            fd = os.open(MENU.parent, os.O_DIRECTORY)
+            try:
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+        finally:
+            temporary.unlink(missing_ok=True)
+        (backup / 'verification.json').write_text(json.dumps(verification, indent=2))
+        print(json.dumps(verification, ensure_ascii=False), flush=True)
+        print('Installation completed. The parameters will apply at the next boot; the computer was not restarted.', flush=True)
+    except Exception:
+        for target, saved in manifest.items():
+            if saved:
+                shutil.copy2(saved, target)
+            else:
+                Path(target).unlink(missing_ok=True)
+        print('An error occurred; the previous GRUB files were restored.', flush=True)
+        raise
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as error:
+        print('Error: ' + str(error), file=sys.stderr)
+        sys.exit(1)

@@ -1,0 +1,163 @@
+#!/usr/bin/python3
+"""Observe Type-C port registration; never write to sysfs or reload drivers."""
+import argparse
+import datetime
+import fcntl
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import tempfile
+
+MODEL = 'ASUS EXPERTBOOK B3405CCA'
+EXPECTED_PORTS = 2
+FAULTS = {'controller_missing', 'driver_missing', 'ports_incomplete', 'unavailable'}
+STATE_DIR = Path(os.environ.get('XDG_STATE_HOME', str(Path.home()/'.local/state')))/'expertbook-usbc-watch'
+
+
+def observe(sysroot=Path('/sys'), procroot=Path('/proc')):
+    result = {'time': datetime.datetime.now().astimezone().isoformat(),
+              'boot_id': '', 'status': 'unavailable', 'ports': []}
+    try:
+        result['model'] = (sysroot/'class/dmi/id/product_name').read_text().strip()
+        if result['model'] != MODEL:
+            result['status'] = 'unsupported'
+            return result
+        result['boot_id'] = (procroot/'sys/kernel/random/boot_id').read_text().strip()
+        result['uptime_seconds'] = float((procroot/'uptime').read_text().split()[0])
+        if result['uptime_seconds'] < 120:
+            result['status'] = 'starting'
+            return result
+        device = sysroot/'bus/platform/devices/USBC000:00'
+        if not device.exists():
+            result['status'] = 'controller_missing'
+            return result
+        driver = device/'driver'
+        result['driver'] = driver.resolve().name if driver.exists() else None
+        if result['driver'] != 'ucsi_acpi':
+            result['status'] = 'driver_missing'
+            return result
+        portroot = device.resolve()/'typec'
+        for port in sorted((sysroot/'class/typec').iterdir()):
+            if re.fullmatch(r'port\d+', port.name) and port.resolve(strict=True).parent == portroot:
+                result['ports'].append(port.name)
+        result['expected_ports'] = EXPECTED_PORTS
+        result['status'] = 'ready' if len(result['ports']) >= EXPECTED_PORTS else 'ports_incomplete'
+    except (OSError, ValueError, IndexError) as error:
+        result['status'] = 'unavailable'
+        result['error'] = str(error)
+    return result
+
+
+def transition(sample, previous):
+    """Require two failed checks; reset episodes at reboot or recovery."""
+    same_boot = bool(sample['boot_id']) and sample['boot_id'] == previous.get('boot_id')
+    continuing = same_boot and sample['status'] in FAULTS and previous.get('status') in FAULTS
+    count = previous.get('failed_checks', 0) + 1 if continuing else int(sample['status'] in FAULTS)
+    notified = bool(previous.get('notified')) if continuing else False
+    attempts = previous.get('notification_attempts', 0) if continuing else 0
+    state = dict(sample, schema=1, failed_checks=count, notified=notified,
+                 notification_attempts=attempts)
+    history = previous.get('history', [])[-20:]
+    if not same_boot or sample['status'] != previous.get('status'):
+        history = history + [{key: sample[key] for key in ('time', 'boot_id', 'status', 'ports')}]
+    state['history'] = history[-20:]
+    action = None
+    if sample['status'] in FAULTS and count >= 2 and not notified and attempts < 3:
+        action = 'warning'
+    elif same_boot and sample['status'] == 'ready' and previous.get('notified'):
+        action = 'recovered'
+    return state, action
+
+
+def notify(kind):
+    messages = {
+        'warning': ('USB-C needs attention',
+                    'USB-C port registration could not be verified in two consecutive checks. '
+                    'Check the USB-C monitor log if charging, devices, or displays stop working.'),
+        'recovered': ('USB-C ports detected again',
+                      'Both USB-C ports are registered. Charging, data, and display functions can be tested separately.'),
+        'test': ('USB-C monitor ready',
+                 'This is a setup test. You will receive a notification here if a port registration problem persists.'),
+    }
+    title, body = messages[kind]
+    try:
+        result = subprocess.run(
+            ['/usr/bin/dunstify', '-a', 'USB-C Monitor', '-u', 'normal', '-t', '12000',
+             '-h', 'string:x-dunst-stack-tag:expertbook-usbc-watch',
+             '-h', 'boolean:suppress-sound:true', '-i', 'dialog-information' if kind != 'warning' else 'dialog-warning',
+             title, body], capture_output=True, text=True, timeout=8)
+        if result.returncode:
+            print('Could not send USB-C notification: '+result.stderr.strip(), flush=True)
+        return result.returncode == 0
+    except (OSError, subprocess.TimeoutExpired) as error:
+        print('Could not send USB-C notification: '+str(error), flush=True)
+        return False
+
+
+def load_state(path):
+    try:
+        if path.stat().st_size > 65536:
+            return {}
+        value = json.loads(path.read_text())
+        if (not isinstance(value, dict) or value.get('schema') != 1
+                or not isinstance(value.get('history'), list)
+                or not isinstance(value.get('failed_checks'), int)
+                or not isinstance(value.get('notification_attempts'), int)):
+            return {}
+        return value
+    except (OSError, ValueError):
+        return {}
+
+
+def save_state(path, state):
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode='w', dir=path.parent, prefix='.state-', delete=False) as handle:
+            temporary = Path(handle.name)
+            json.dump(state, handle, ensure_ascii=False, indent=2)
+            handle.write('\n')
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--status', action='store_true', help='Read the current state without writing or notifying')
+    mode.add_argument('--test-notification', action='store_true', help='Send one clearly labelled setup notification')
+    args = parser.parse_args()
+    if args.status:
+        print(json.dumps(observe(), ensure_ascii=False, indent=2))
+        return 0
+    if args.test_notification:
+        return 0 if notify('test') else 1
+    os.umask(0o077)
+    STATE_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+    path = STATE_DIR/'state.json'
+    with (STATE_DIR/'check.lock').open('a') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return 0
+        previous = load_state(path)
+        state, action = transition(observe(), previous)
+        if action:
+            sent = notify(action)
+            if action == 'warning':
+                state['notification_attempts'] += 1
+                state['notified'] = sent
+        save_state(path, state)
+        if state['status'] != previous.get('status') or state['boot_id'] != previous.get('boot_id') or action:
+            print(f"USB-C: {state['status']}; ports={','.join(state['ports']) or 'none'}; "
+                  f"failed_checks={state['failed_checks']}; notification={action or 'none'}", flush=True)
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

@@ -1,0 +1,220 @@
+#!/usr/bin/python3
+"""Apply the reviewed Debian/ExpertBook boot fixes, with boot-file rollback."""
+import argparse
+import datetime
+import hashlib
+import json
+import os
+from pathlib import Path
+import pwd
+import re
+import runpy
+import shlex
+import shutil
+import subprocess
+import sys
+
+BASE = Path('/var/lib/expertbook/boot')
+KERNEL = '6.12.111+deb13-amd64'
+PACKAGE = 'firmware-cirrus=20250410-2'
+ALSA = Path('/etc/udev/rules.d/90-alsa-restore.rules')
+MODULES = Path('/etc/initramfs-tools/modules')
+TIMEOUT = Path('/etc/default/grub.d/95-expertbook-boot.cfg')
+SMART = Path('/etc/systemd/system/smartmontools.service.d/options.conf')
+MASK = Path('/var/lib/greetd/.config/systemd/user/drkonqi-coredump-launcher.socket')
+MENU = Path('/boot/grub/grub.cfg')
+INITRD = Path('/boot/initrd.img-' + KERNEL)
+
+
+def run(*args):
+    result = subprocess.run(args, text=True, capture_output=True)
+    if result.returncode:
+        raise RuntimeError(shlex.join(args) + '\n' + result.stdout + result.stderr)
+    return result.stdout + result.stderr
+
+
+def digest(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def packages():
+    text = run('dpkg-query', '-W', '-f=${binary:Package}\t${Version}\t${db:Status-Status}\n')
+    return {parts[0]: parts[1] for line in text.splitlines()
+            if len(parts := line.split('\t')) == 3 and parts[2] == 'installed'}
+
+
+def replace(path, data, mode=0o644):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_name(path.name + '.expertbook-new')
+    with temp.open('xb') as handle:
+        handle.write(data)
+        handle.flush()
+        os.fchmod(handle.fileno(), mode)
+        os.fsync(handle.fileno())
+    os.replace(temp, path)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--apply', action='store_true')
+    args = parser.parse_args()
+    os.environ.update(PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', LC_ALL='C')
+    if os.uname().release != KERNEL or Path('/sys/class/dmi/id/product_name').read_text().strip() != 'ASUS EXPERTBOOK B3405CCA':
+        raise RuntimeError('The hardware or kernel differs from the inspected state.')
+    vendor = Path('/usr/lib/udev/rules.d/90-alsa-restore.rules').read_text()
+    label = 'LABEL="alsa_restore_go"'
+    if vendor.count(label) != 2 or 'LABEL="alsa_restore_std"' in vendor:
+        raise RuntimeError('The ALSA rule has changed and must be reviewed again.')
+    before, after = vendor.rsplit(label, 1)
+    fixed_rule = before + 'LABEL="alsa_restore_std"' + after
+    modules = MODULES.read_text()
+    for name in ('mei_me', 'mei_gsc_proxy'):
+        run('modinfo', '-k', KERNEL, name)
+    additions = [name for name in ('mei_me', 'mei_gsc_proxy')
+                 if not re.search(r'^\s*' + name + r'(?:\s|$)', modules, re.M)]
+    if additions:
+        modules = modules.rstrip() + '\n\n# ExpertBook: make the Intel GSC proxy available in early boot.\n' + '\n'.join(additions) + '\n'
+    expected = {
+        ALSA: fixed_rule.encode(),
+        MODULES: modules.encode(),
+        TIMEOUT: b'# Keep the recovery menu accessible.\nGRUB_TIMEOUT_STYLE=menu\nGRUB_TIMEOUT=3\n',
+        SMART: b'[Service]\n# Empty default; /etc/default/smartmontools can override it.\nEnvironment=smartd_opts=\n',
+    }
+    for path in expected:
+        if path.is_symlink():
+            raise RuntimeError('Unexpected symbolic link: ' + str(path))
+        if path != MODULES and path.exists() and path.read_bytes() != expected[path]:
+            raise RuntimeError('An existing different setting was not overwritten: ' + str(path))
+    if os.path.lexists(MASK) and (not MASK.is_symlink() or os.readlink(MASK) != '/dev/null'):
+        raise RuntimeError('A custom DrKonqi setting already exists for the greeter.')
+    simulation = run('apt-get', '--simulate', '--no-install-recommends', '--no-remove', '--no-upgrade', 'install', PACKAGE)
+    changes = re.findall(r'^(Inst|Remv) (\S+)', simulation, re.M)
+    if any(kind != 'Inst' or name != 'firmware-cirrus' for kind, name in changes):
+        raise RuntimeError('Unexpected package change:\n' + simulation)
+    print('Preflight passed: Cirrus firmware only; ALSA, MEI, greeter and smartd fixes; GRUB timeout of 3 seconds.', flush=True)
+    if not args.apply:
+        return
+    if os.geteuid() != 0 or not os.access(MENU.parent, os.W_OK):
+        raise RuntimeError('System administrator authentication is required to apply these changes.')
+    if shutil.disk_usage('/boot').free < 1024 ** 3:
+        raise RuntimeError('At least 1 GiB of free space is required for the backup and initramfs.')
+    run('grub-script-check', str(MENU))
+    account = pwd.getpwnam('_greetd')
+    if account.pw_dir != '/var/lib/greetd':
+        raise RuntimeError('The greeter home directory has changed.')
+    protected = [Path('/etc/default/grub'), Path('/etc/greetd/config.toml'),
+                 Path('/etc/default/grub.d/90-expertbook-hardening.cfg'),
+                 Path('/etc/grub.d/42_expertbook_previous'), Path('/etc/fstab'),
+                 Path('/etc/tlp.d/90-expertbook-b3405.conf'),
+                 Path('/etc/udev/rules.d/90-usb-no-autosuspend.rules'),
+                 Path('/boot/initrd.img-6.12.107+deb13-amd64')]
+    hashes = {str(path): digest(path) for path in protected}
+    installed = packages()
+    backup = Path('/var/backups/boot-expertbook') / datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
+    backup.mkdir(mode=0o700, parents=True)
+    print('Yedek: ' + str(backup), flush=True)
+    manifest = {}
+    targets = [*expected, MASK, MENU, *Path('/boot').glob('initrd.img-*')]
+    for index, path in enumerate(targets):
+        saved = backup / ('file-' + str(index))
+        if os.path.lexists(path):
+            shutil.copy2(path, saved, follow_symlinks=False)
+            manifest[str(path)] = str(saved)
+        else:
+            manifest[str(path)] = None
+    (backup / 'manifest.json').write_text(json.dumps(manifest, indent=2))
+    (backup / 'packages-before.json').write_text(json.dumps(installed, indent=2))
+    (backup / 'apt-simulation.txt').write_text(simulation)
+    rollback = '''#!/usr/bin/python3
+import json, os, shutil, subprocess
+from pathlib import Path
+if os.geteuid() != 0:
+    raise SystemExit('Run as root.')
+base = Path(__file__).resolve().parent
+for name, saved in json.loads((base / 'manifest.json').read_text()).items():
+    target = Path(name)
+    if saved:
+        temporary = target.with_name(target.name + '.expertbook-restore')
+        shutil.copy2(saved, temporary, follow_symlinks=False)
+        os.replace(temporary, target)
+    else:
+        target.unlink(missing_ok=True)
+subprocess.run(['systemctl', 'daemon-reload'], check=True)
+subprocess.run(['udevadm', 'control', '--reload-rules'], check=True)
+os.sync()
+print('Boot/config files restored. The separately installed firmware package was retained.')
+'''
+    (backup / 'restore.py').write_text(rollback)
+    try:
+        for path, contents in expected.items():
+            replace(path, contents)
+        for folder in (Path('/var/lib/greetd/.config'), MASK.parent.parent, MASK.parent):
+            if not folder.exists():
+                folder.mkdir(mode=0o700)
+                os.chown(folder, account.pw_uid, account.pw_gid)
+        if not os.path.lexists(MASK):
+            MASK.symlink_to('/dev/null')
+            os.lchown(MASK, account.pw_uid, account.pw_gid)
+        (backup / 'udev-verify.txt').write_text(run('udevadm', 'verify', str(ALSA)))
+        print('Resmi Debian Cirrus firmware paketi kuruluyor...', flush=True)
+        (backup / 'apt-install.txt').write_text(run('apt-get', '-y', '--no-install-recommends', '--no-remove', '--no-upgrade', 'install', PACKAGE))
+        # Build in the backup directory and verify before replacing the live image.
+        # Preserve the previous kernel's image as a second recovery path.
+        new_initrd = backup / 'initrd-new'
+        print('Preparing the new initramfs and verifying storage and GSC drivers...', flush=True)
+        (backup / 'initramfs-generation.txt').write_text(run('mkinitramfs', '-o', str(new_initrd), KERNEL))
+        listing = run('lsinitramfs', str(new_initrd))
+        (backup / 'initramfs-contents.txt').write_text(listing)
+        for module in ('nvme', 'nvme-core', 'vmd', 'mei', 'mei-me', 'mei_gsc_proxy', 'ext4'):
+            if not re.search(r'/' + re.escape(module) + r'\.ko(?:\.(?:xz|zst|gz))?$', listing, re.M):
+                raise RuntimeError('Driver missing from the new initramfs: ' + module)
+        for suffix in ('.wmfw', '-spkid0-l0.bin', '-spkid0-r0.bin', '-spkid1-l0.bin', '-spkid1-r0.bin'):
+            firmware = Path('/usr/lib/firmware/cirrus/cs35l41-dsp1-spk-prot-104312b4' + suffix)
+            if not firmware.is_file():
+                raise RuntimeError('Device-specific firmware not found: ' + str(firmware))
+        replace(INITRD, new_initrd.read_bytes(), INITRD.stat().st_mode & 0o777)
+        generated = backup / 'new-grub.cfg'
+        (backup / 'grub-generation.txt').write_text(run('grub-mkconfig', '-o', str(generated)))
+        run('grub-script-check', str(generated))
+        menu = generated.read_text()
+        checker = runpy.run_path('/usr/local/sbin/setup-grub-expertbook')
+        root = next(arg for arg in shlex.split(Path('/proc/cmdline').read_text()) if arg.startswith('root='))
+        verified = checker['verify_menu'](menu, root)
+        if 'set timeout=3' not in menu or 'set timeout_style=menu' not in menu:
+            raise RuntimeError('Could not verify the GRUB timeout.')
+        for name, original in hashes.items():
+            if digest(name) != original:
+                raise RuntimeError('A protected configuration or previous kernel has changed: ' + name)
+        after = packages()
+        if any(after.get(name) != version for name, version in installed.items()) or set(after) - set(installed) - {'firmware-cirrus'}:
+            raise RuntimeError('A package other than the expected firmware has changed; check the backup log.')
+        if run('dpkg', '--audit').strip():
+            raise RuntimeError('dpkg --audit reported an incomplete package operation.')
+        run('apt-get', 'check')
+        replace(MENU, generated.read_bytes(), 0o600)
+        run('systemctl', 'daemon-reload')
+        run('udevadm', 'control', '--reload-rules')
+        os.sync()
+        verified.update(backup=str(backup), grub_timeout=3,
+                        firmware=after.get('firmware-cirrus'), packages_removed=[],
+                        protected_files_unchanged=True, reboot_test_pending=True,
+                        nvme_vmd_timeout_resolved=False)
+        report = json.dumps(verified, indent=2, ensure_ascii=False) + '\n'
+        (backup / 'verification.json').write_text(report)
+        destination = BASE / 'last-apply.json'
+        replace(destination, report.encode(), 0o600)
+        os.chown(destination, 0, 0)
+        print(report, flush=True)
+        print('Completed. The session and services were not restarted; a boot test is pending.', flush=True)
+    except Exception:
+        print('Operation failed; restoring the previous boot files.', flush=True)
+        subprocess.run(['/usr/bin/python3', str(backup / 'restore.py')], check=True)
+        raise
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as error:
+        print('Error: ' + str(error), file=sys.stderr)
+        sys.exit(1)

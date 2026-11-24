@@ -1,0 +1,33 @@
+--- a/src/main.c
++++ b/src/main.c
+@@ -333,12 +333,13 @@
+         const char *startup_id;
+         const char *app_id;
+         char       *client_id;
++        g_autofree char *session_owner = NULL;
+ 
+         startup_id = g_getenv ("DESKTOP_AUTOSTART_ID");
+         app_id = "polkit-mate-authentication-agent-1.desktop";
+ 
+         sm_proxy = g_dbus_proxy_new_for_bus_sync (G_BUS_TYPE_SESSION,
+-                                                  G_DBUS_PROXY_FLAGS_NONE,
++                                                  G_DBUS_PROXY_FLAGS_DO_NOT_AUTO_START,
+                                                   NULL, /* GDBusInterfaceInfo */
+                                                   SM_DBUS_NAME,
+                                                   SM_DBUS_PATH,
+@@ -351,6 +352,15 @@
+                 return FALSE;
+         }
+ 
++        /* Optional GNOME/MATE session registration is not available in dwm.
++         * Authentication is registered separately with the system authority. */
++        session_owner = g_dbus_proxy_get_name_owner (sm_proxy);
++        if (session_owner == NULL) {
++                g_clear_object (&sm_proxy);
++                return TRUE;
++        }
++        if (startup_id == NULL)
++                startup_id = "";
+         res = g_dbus_proxy_call_sync (sm_proxy,
+                                       "RegisterClient",
+                                       g_variant_new ("(ss)",

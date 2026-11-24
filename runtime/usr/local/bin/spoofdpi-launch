@@ -1,0 +1,69 @@
+#!/usr/bin/python3
+"""Wait for the login's IPv4 gateway, then exec the rice's local proxy."""
+import fcntl
+import os
+from pathlib import Path
+import subprocess
+import sys
+import time
+
+COMMAND = [
+    '/usr/local/bin/spoofdpi', '--listen-addr', '127.0.0.1:9080',
+    '--dns-mode', 'https', '--dns-https-url', 'https://1.1.1.1/dns-query',
+    '--dns-qtype', 'ipv4', '--dns-cache', '--https-split-mode', 'first-byte',
+    '--no-tui', '--log-level', 'error',
+]
+
+
+def gateway_ready():
+    try:
+        result = subprocess.run(['/usr/bin/ip', '-4', 'route', 'show', 'default'],
+                                capture_output=True, text=True, timeout=2)
+        return result.returncode == 0 and any(
+            line.startswith('default via ') and ' linkdown' not in line
+            for line in result.stdout.splitlines())
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def processes(name):
+    result = subprocess.run(['/usr/bin/pgrep', '-u', str(os.getuid()), '-x', name],
+                            capture_output=True, text=True, timeout=2)
+    return result.stdout.split() if result.returncode == 0 else []
+
+
+def wait_for_gateway(wm, timeout=120):
+    deadline = time.monotonic() + timeout
+    while Path('/proc', wm).exists():
+        if gateway_ready():
+            return True
+        if time.monotonic() >= deadline:
+            break
+        time.sleep(1)
+    return False
+
+
+def main():
+    runtime = Path('/run/user') / str(os.getuid())
+    os.umask(0o077)
+    with (runtime / 'spoofdpi-launch.lock').open('a') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return 0
+        if processes('spoofdpi'):
+            return 0
+        wm = processes('dwm')
+        if not wm:
+            return 0
+        if not wait_for_gateway(wm[0]):
+            print('spoofdpi-launch: no IPv4 gateway within 120s or session ended; '
+                  'run spoofdpi-launch after connecting', file=sys.stderr)
+            return 1
+        # Keep the lock across exec; no persistent Python supervisor or polling.
+        os.set_inheritable(lock.fileno(), True)
+        os.execv(COMMAND[0], COMMAND)
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

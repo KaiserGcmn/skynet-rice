@@ -1,0 +1,8 @@
+# The Floorp repository may provide the floorp package and nothing else.
+Package: *
+Pin: origin "ppa.floorp.app"
+Pin-Priority: -1
+
+Package: floorp
+Pin: origin "ppa.floorp.app"
+Pin-Priority: 500

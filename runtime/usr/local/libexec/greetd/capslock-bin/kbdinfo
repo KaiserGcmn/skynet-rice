@@ -1,0 +1,22 @@
+#!/bin/sh
+# tuigreet 0.9.1 asks kbdinfo for the conventional Caps Lock bit. Debian's
+# Unicode console map uses CtrlL_Lock instead. Read its mapped LED state.
+# This helper is on PATH only for the greeter; it needs no input-device access.
+if [ "$#" -eq 2 ] && [ "$1" = gkbled ] && [ "$2" = capslock ]; then
+    seen=0
+    for led in /sys/class/leds/input*::capslock; do
+        [ -r "$led/trigger" ] && [ -r "$led/brightness" ] || continue
+        IFS= read -r triggers < "$led/trigger" || continue
+        case " $triggers " in
+            *" [kbd-ctrlllock] "*) ;;
+            *) continue ;;
+        esac
+        IFS= read -r brightness < "$led/brightness" || continue
+        case "$brightness" in
+            1) exit 0 ;;
+            0) seen=1 ;;
+        esac
+    done
+    [ "$seen" -eq 0 ] || exit 1
+fi
+exec /usr/bin/kbdinfo "$@"

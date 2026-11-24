@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- SKYNET tray: monochrome Bluetooth rune in the breeze-dark tray white.
+       The dwm systray publishes no _NET_SYSTEM_TRAY_COLORS, so symbolic
+       icons would render black; this full-colour name is used instead. -->
+  <title>Bluetooth on</title>
+  <g fill="#fcfcfc" transform="translate(8 8) scale(0.62) translate(-8 -8)">
+    <g>
+      <path d="M7.200,1.500 L7.200,14.500 L8.800,14.500 L8.800,1.500 Z"/>
+      <path d="M7.434,2.066 L10.934,5.566 L12.066,4.434 L8.566,0.934 Z"/>
+      <path d="M10.979,4.393 L3.979,10.393 L5.021,11.607 L12.021,5.607 Z"/>
+      <path d="M8.566,15.066 L12.066,11.566 L10.934,10.434 L7.434,13.934 Z"/>
+      <path d="M12.021,10.393 L5.021,4.393 L3.979,5.607 L10.979,11.607 Z"/>
+      <circle cx="8" cy="1.5" r="0.8"/>
+      <circle cx="11.5" cy="5" r="0.8"/>
+      <circle cx="8" cy="14.5" r="0.8"/>
+      <circle cx="11.5" cy="11" r="0.8"/>
+    </g>
+  </g>
+</svg>

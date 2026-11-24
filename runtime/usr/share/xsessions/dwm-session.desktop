@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=SKYNET / REDLINE (DWM)
+Comment=SKYNET desktop for Devuan
+Exec=/usr/local/bin/dwm-session
+TryExec=/usr/local/bin/dwm-session
+Type=Application
+X-LightDM-DesktopName=dwm

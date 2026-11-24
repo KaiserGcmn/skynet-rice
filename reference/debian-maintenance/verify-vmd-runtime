@@ -1,0 +1,43 @@
+#!/usr/bin/python3
+"""Read the current boot's VMD/storage state; write only a diagnostic report."""
+import datetime
+import json
+import os
+from pathlib import Path
+import pwd
+import re
+import subprocess
+
+if os.geteuid() != 0:
+    raise SystemExit('Administrator access is required for kernel logs and SMART data.')
+os.environ.update(PATH='/usr/sbin:/usr/bin:/sbin:/bin', LC_ALL='C')
+account = pwd.getpwuid(0)
+base = Path('/var/lib/expertbook/boot/vmd-fix')
+kernel = subprocess.run(['dmesg', '--color=never'], check=True, capture_output=True, text=True).stdout
+smart = subprocess.run(['smartctl', '-j', '-H', '-A', '/dev/nvme0'], capture_output=True, text=True, timeout=20)
+health = json.loads(smart.stdout)
+lines = kernel.splitlines()
+result = {
+    'time': datetime.datetime.now().astimezone().isoformat(),
+    'boot_id': Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
+    'uptime_seconds': float(Path('/proc/uptime').read_text().split()[0]),
+    'vmd_version': Path('/sys/module/vmd/version').read_text().strip(),
+    'cmdline': Path('/proc/cmdline').read_text().strip(),
+    'nvme_timeout_lines': [x for x in lines if 'nvme' in x.lower() and re.search(r'timeout|timed out|completion polled', x, re.I)],
+    'storage_error_lines': [x for x in lines if re.search(r'I/O error|Buffer I/O|EXT4-fs error|nvme.*(?:resetting|abort|failed|fatal)', x, re.I)],
+    'ucsi_lines': [x for x in lines if 'ucsi' in x.lower()],
+    'module_verification_lines': [x for x in lines if re.search(r'module verification|taints kernel', x, re.I)],
+    'smart_exit_status': smart.returncode,
+    'smart_passed': health.get('smart_status', {}).get('passed'),
+    'nvme_health': health.get('nvme_smart_health_information_log', {}),
+    'security_lsm': Path('/sys/kernel/security/lsm').read_text().strip(),
+    'module_signature_enforced': Path('/sys/module/module/parameters/sig_enforce').read_text().strip(),
+}
+path = base/('runtime-'+datetime.datetime.now().strftime('%Y%m%d-%H%M%S')+'.json')
+with path.open('x') as handle:
+    os.fchmod(handle.fileno(), 0o600)
+    json.dump(result, handle, indent=2, ensure_ascii=False)
+    handle.write('\n')
+os.chown(path, account.pw_uid, account.pw_gid)
+print(str(path), flush=True)
+print(json.dumps(result, indent=2, ensure_ascii=False), flush=True)

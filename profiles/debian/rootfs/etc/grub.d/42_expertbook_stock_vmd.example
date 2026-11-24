@@ -1,0 +1,18 @@
+#!/bin/sh
+# Preserve the stock driver for recovery.
+test -f /boot/initrd.img-6.12.113+deb13-amd64-stock-vmd || exit 0
+test -f /boot/vmlinuz-6.12.113+deb13-amd64 || exit 0
+cat <<'EXPERTBOOK_STOCK_VMD_EOF'
+menuentry 'Debian - stock VMD fallback (6.12.113)' --id expertbook-stock-vmd-113 {
+	load_video
+	insmod gzio
+	if [ x$grub_platform = xxen ]; then insmod xzio; insmod lzopio; fi
+	insmod part_gpt
+	insmod ext2
+	search --no-floppy --fs-uuid --set=root @@ROOT_UUID@@
+	echo	'Loading Linux 6.12.113+deb13-amd64 ...'
+	linux	/boot/vmlinuz-6.12.113+deb13-amd64 root=UUID=@@ROOT_UUID@@ ro  quiet slab_nomerge init_on_alloc=1 page_alloc.shuffle=1 randomize_kstack_offset=on vsyscall=none iommu.passthrough=0 efi=disable_early_pci_dma nmi_watchdog=0 loglevel=3
+	echo	'Loading initial ramdisk ...'
+	initrd	/boot/initrd.img-6.12.113+deb13-amd64-stock-vmd
+}
+EXPERTBOOK_STOCK_VMD_EOF

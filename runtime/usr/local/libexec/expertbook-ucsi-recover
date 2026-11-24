@@ -1,0 +1,192 @@
+#!/usr/bin/python3
+"""Re-probe USB-C (UCSI) when its ports failed to register at boot.
+
+On the ASUS ExpertBook B3405CCA, ucsi_acpi often logs "PPM init failed"
+during boot: the driver stays bound but no Type-C ports appear. Reloading
+ucsi_acpi recovers them only when the module stays unloaded for a few
+seconds first; an immediate unload+load times out again (2026-11-20: four
+immediate reloads failed with and without the charger, both reloads with a
+3 s pause worked, with and without the charger). This helper acts only in
+exactly that state, after boot has settled: up to MAX_ATTEMPTS reloads with
+growing pauses, ports counted only once they stay registered. It never loads
+a driver that was not already bound. Charging is handled by the EC and is
+not touched. `--status` is read-only.
+"""
+import argparse
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import time
+
+MODEL = 'ASUS EXPERTBOOK B3405CCA'
+EXPECTED_PORTS = 2
+DEVICE = 'bus/platform/devices/USBC000:00'
+MODULE = 'ucsi_acpi'
+SETTLE_UPTIME = 30.0     # the PPM timeout is logged around 11-12 s
+POLL_SECONDS = 2.0
+RECOVERY_WAIT = 45.0     # an init attempt can need two 10 s command timeouts
+STABLE_SECONDS = 30.0    # ports appear mid-init and vanish if init then fails
+UNLOAD_PAUSES = (5.0, 10.0, 20.0)   # module left unloaded before each load
+ATTEMPT_GAP = 60.0       # let the EC settle between failed attempts
+MAX_ATTEMPTS = len(UNLOAD_PAUSES)
+MARKER = Path('/run/expertbook-ucsi-recover')
+TAG = 'expertbook-ucsi-recover'
+
+
+def observe(sysroot=Path('/sys')):
+    """Return (status, ports) without writing anything."""
+    try:
+        if (sysroot/'class/dmi/id/product_name').read_text().strip() != MODEL:
+            return 'unsupported', []
+        device = sysroot/DEVICE
+        if not device.exists():
+            return 'controller_missing', []
+        driver = device/'driver'
+        if not driver.exists() or driver.resolve().name != MODULE:
+            return 'driver_missing', []
+        portroot = device.resolve()/'typec'
+        ports = []
+        typec = sysroot/'class/typec'
+        if typec.is_dir():
+            for port in sorted(typec.iterdir()):
+                if re.fullmatch(r'port\d+', port.name) and port.resolve().parent == portroot:
+                    ports.append(port.name)
+        return ('ready' if len(ports) >= EXPECTED_PORTS else 'ports_incomplete'), ports
+    except (OSError, ValueError) as error:
+        return 'unavailable: ' + str(error), []
+
+
+def stays_ready(sysroot, sleep):
+    """True only if the ports remain registered for STABLE_SECONDS.
+
+    ucsi_init() registers each port before it has finished talking to the
+    PPM; when a later command times out it unregisters them again (observed
+    2026-11-20 16:59: ports visible for ~20 s, then "con2: failed to get
+    status" and "PPM init failed").
+    """
+    waited = 0.0
+    while waited < STABLE_SECONDS:
+        sleep(POLL_SECONDS)
+        waited += POLL_SECONDS
+        if observe(sysroot)[0] != 'ready':
+            return False
+    return True
+
+
+def uptime(procroot=Path('/proc')):
+    return float((procroot/'uptime').read_text().split()[0])
+
+
+def boot_id(procroot=Path('/proc')):
+    return (procroot/'sys/kernel/random/boot_id').read_text().strip()
+
+
+def log(message):
+    print(f'{TAG}: {message}', flush=True)
+    try:
+        import syslog
+        syslog.openlog(TAG, 0, syslog.LOG_DAEMON)
+        syslog.syslog(syslog.LOG_NOTICE, message)
+    except OSError:
+        pass
+
+
+def modprobe(*args):
+    result = subprocess.run(['/sbin/modprobe', *args], capture_output=True,
+                            text=True, timeout=30)
+    return result.returncode == 0, result.stderr.strip()
+
+
+def recover(sysroot=Path('/sys'), procroot=Path('/proc'), marker=MARKER,
+            run=modprobe, sleep=time.sleep, say=log):
+    """Run one boot's check. Returns the action taken, for tests and logs."""
+    current = boot_id(procroot)
+    try:
+        if marker.read_text().strip() == current:
+            return 'already_checked'
+    except OSError:
+        pass
+    marker.write_text(current + '\n')   # written first: never loops, even on crash
+
+    while True:
+        status, ports = observe(sysroot)
+        if status == 'ready' and stays_ready(sysroot, sleep):
+            say(f'USB-C ready ({",".join(ports)}); no action')
+            return 'ready'
+        status, ports = observe(sysroot)
+        if status == 'ready':
+            continue
+        if uptime(procroot) >= SETTLE_UPTIME:
+            break
+        sleep(POLL_SECONDS)
+
+    if status != 'ports_incomplete':
+        say(f'USB-C state {status}; left unchanged')
+        return 'left_unchanged'
+
+    for attempt, pause in enumerate(UNLOAD_PAUSES, 1):
+        if attempt > 1:
+            sleep(ATTEMPT_GAP)
+            status, ports = observe(sysroot)
+            if status == 'ready' and stays_ready(sysroot, sleep):
+                say(f'USB-C registered without further action ({",".join(ports)})')
+                return 'ready_later'
+            if observe(sysroot)[0] != 'ports_incomplete':
+                say(f'USB-C state {observe(sysroot)[0]}; left unchanged')
+                return 'left_unchanged'
+        say(f'UCSI bound without ports (PPM init failure); reload {attempt}/{MAX_ATTEMPTS} '
+            f'with a {pause:g} s pause')
+        result, status = reload_once(sysroot, run, sleep, say, pause)
+        if result != 'not_recovered':
+            return result
+    say(f'USB-C still {status} after {MAX_ATTEMPTS} reloads; not retrying this boot')
+    return 'not_recovered'
+
+
+def reload_once(sysroot, run, sleep, say, pause):
+    """Unload ucsi_acpi, wait, load it, then wait for stable ports. Returns (result, status)."""
+    ok, error = run('-r', MODULE)
+    if not ok:
+        say(f'could not unload {MODULE}: {error or "unknown error"}; left unchanged')
+        return 'unload_failed', None
+    sleep(pause)
+    ok, error = run(MODULE)
+    if not ok:
+        say(f'could not load {MODULE} again: {error or "unknown error"}')
+        return 'load_failed', None
+    waited = 0.0
+    while waited < RECOVERY_WAIT:
+        status, ports = observe(sysroot)
+        if status == 'ready':
+            if stays_ready(sysroot, sleep):
+                say(f'USB-C recovered ({",".join(ports)})')
+                return 'recovered', status
+            say('USB-C ports appeared but were removed again (PPM init failed late)')
+            return 'not_recovered', observe(sysroot)[0]
+        sleep(POLL_SECONDS)
+        waited += POLL_SECONDS
+    return 'not_recovered', status
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument('--status', action='store_true', help='print the current state (read-only)')
+    mode.add_argument('--boot', action='store_true', help='one-shot boot check (root)')
+    args = parser.parse_args()
+    if args.status:
+        status, ports = observe()
+        print(json.dumps({'status': status, 'ports': ports}))
+        return 0
+    if os.geteuid() != 0:
+        print(f'{TAG}: --boot requires root', file=sys.stderr)
+        return 1
+    recover()
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

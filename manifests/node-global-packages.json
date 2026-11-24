@@ -1,0 +1,17 @@
+[
+  {
+    "name": "corepack",
+    "version": "0.36.0",
+    "path": ".nvm/versions/node/v24.21.0/lib/node_modules/corepack"
+  },
+  {
+    "name": "npm",
+    "version": "12.2.0",
+    "path": ".nvm/versions/node/v24.21.0/lib/node_modules/npm"
+  },
+  {
+    "name": "@openai/codex",
+    "version": "0.163.0",
+    "path": ".nvm/versions/node/v24.21.0/lib/node_modules/@openai/codex"
+  }
+]

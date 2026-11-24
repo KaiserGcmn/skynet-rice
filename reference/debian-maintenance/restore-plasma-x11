@@ -1,0 +1,139 @@
+#!/usr/bin/python3
+"""Restore Plasma X11 while keeping its Wayland entry out of the login menu."""
+import argparse
+import configparser
+import datetime
+import json
+import os
+from pathlib import Path
+import shlex
+import shutil
+import subprocess
+import sys
+
+PACKAGES = {
+    'plasma-desktop': '4:6.3.6-1',
+    'plasma-workspace': '4:6.3.6-2',
+    'kwin-x11': '4:6.3.6-1',
+    'kwin-wayland': '4:6.3.6-1',
+}
+WAYLAND = '/usr/share/wayland-sessions/plasma.desktop'
+DISABLED = WAYLAND + '.disabled'
+APT = ['apt-get', '--no-remove', '--no-upgrade', '--no-install-recommends',
+       '-o', 'APT::Get::AutomaticRemove=false']
+
+
+def run(*args, **kwargs):
+    return subprocess.run(args, check=True, text=True, capture_output=True, **kwargs)
+
+
+def installed():
+    output = run('dpkg-query', '-W', '-f=${binary:Package}\t${Version}\t${db:Status-Status}\n').stdout
+    return {name: version for name, version, status in
+            (line.split('\t') for line in output.splitlines()) if status == 'installed'}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--apply', action='store_true')
+    args = parser.parse_args()
+    os.environ.update(PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+                      LC_ALL='C', DEBIAN_FRONTEND='noninteractive', NEEDRESTART_MODE='l')
+    before = installed()
+    # kwin-wayland is a hard dependency of Debian's shared plasma-workspace.
+    # Let apt install it automatically; hide only its session entry below.
+    requested = [name + '=' + PACKAGES[name] for name in ('plasma-desktop', 'plasma-workspace', 'kwin-x11')]
+    simulation = run(*APT, '--simulate', 'install', *requested).stdout
+    changes = {line.split()[1] for line in simulation.splitlines() if line.startswith('Inst ')}
+    if not changes <= PACKAGES.keys() or changes & before.keys():
+        raise RuntimeError('The plan must only add the reviewed new Plasma packages.\n' + simulation)
+    if any(line.startswith(('Remv ', 'Purg ')) for line in simulation.splitlines()):
+        raise RuntimeError('Package removal was scheduled; operation stopped.\n' + simulation)
+    existing_diversion = run('dpkg-divert', '--listpackage', WAYLAND).stdout.strip()
+    if existing_diversion:
+        destination = run('dpkg-divert', '--truename', WAYLAND).stdout.strip()
+        if existing_diversion != 'LOCAL' or destination != DISABLED:
+            raise RuntimeError('The Wayland session file has a different dpkg diversion.')
+    elif Path(DISABLED).exists() or Path(DISABLED).is_symlink():
+        raise RuntimeError('The destination for the disabled session file already exists.')
+    for path in (WAYLAND, DISABLED):
+        if Path(path).is_symlink():
+            raise RuntimeError('Unexpected symbolic link: ' + path)
+    print(simulation, flush=True)
+    print('Login menu: dwm and Plasma (X11). The Wayland session file will be persistently hidden.', flush=True)
+    if not args.apply:
+        return
+    if os.geteuid() != 0:
+        raise RuntimeError('Administrator authentication is required for --apply.')
+    run('systemctl', 'is-active', '--quiet', 'greetd.service')
+    run('pgrep', '-x', 'dwm')
+    manager = Path('/etc/systemd/system/display-manager.service')
+    manager_before = manager.resolve()
+    if manager_before.name != 'greetd.service':
+        raise RuntimeError('The active display manager must be greetd.')
+    config = Path('/etc/greetd/config.toml')
+    config_before = config.read_bytes()
+    dwm_entry = Path('/usr/share/xsessions/dwm.desktop')
+    dwm_before = dwm_entry.read_bytes()
+    backup = Path('/var/backups/plasma-x11-restore') / datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
+    backup.mkdir(parents=True, mode=0o700)
+    (backup / 'packages-before.json').write_text(json.dumps(before, indent=2))
+    (backup / 'manual-before.txt').write_text(run('apt-mark', 'showmanual').stdout)
+    (backup / 'simulation.txt').write_text(simulation)
+    (backup / 'greetd-config.toml').write_bytes(config_before)
+    (backup / 'dwm.desktop').write_bytes(dwm_before)
+    (backup / 'display-manager-link.txt').write_text(str(manager_before) + '\n')
+    for name in ('x-session-manager', 'x-window-manager'):
+        result = subprocess.run(['update-alternatives', '--query', name], text=True, capture_output=True)
+        (backup / (name + '.txt')).write_text(result.stdout + result.stderr)
+    print('Backup and operation log: ' + str(backup), flush=True)
+
+    # A local diversion persists across package upgrades. Installing the shared
+    # workspace then writes the Wayland entry directly to the disabled path.
+    if not existing_diversion:
+        run('dpkg-divert', '--local', '--add', '--rename', '--divert', DISABLED, WAYLAND)
+    result = subprocess.run([*APT, '--yes', 'install', *requested], text=True, capture_output=True)
+    (backup / 'apt-install.log').write_text(result.stdout + result.stderr)
+    if result.returncode:
+        print(result.stdout + result.stderr, flush=True)
+        raise RuntimeError('Package installation did not complete; see the operation log for details.')
+
+    after = installed()
+    (backup / 'packages-after.json').write_text(json.dumps(after, indent=2))
+    if any(after.get(name) != version for name, version in before.items()):
+        raise RuntimeError('An unexpected change to previously installed packages was detected.')
+    if set(after) - set(before) != changes:
+        raise RuntimeError('The added packages differ from the preflight plan.')
+    for name, version in PACKAGES.items():
+        if after.get(name) != version:
+            raise RuntimeError('The Plasma package was not installed at the expected version: ' + name)
+    if config.read_bytes() != config_before or dwm_entry.read_bytes() != dwm_before or manager.resolve() != manager_before:
+        raise RuntimeError('An unexpected change to the existing display manager or dwm configuration was detected.')
+    if Path(WAYLAND).exists() or not Path(DISABLED).is_file():
+        raise RuntimeError('Could not hide the Wayland session entry.')
+    for path in sorted(Path('/usr/share/xsessions').glob('*.desktop')):
+        entry = configparser.ConfigParser(interpolation=None, strict=False)
+        entry.read(path)
+        executable = shlex.split(entry['Desktop Entry']['Exec'])[0]
+        if not shutil.which(executable):
+            raise RuntimeError('Session launcher not found: ' + executable)
+        print('Verified session: ' + entry['Desktop Entry']['Name'], flush=True)
+    for command in ('startplasma-x11', 'kwin_x11', 'plasmashell', 'dwm'):
+        if not shutil.which(command):
+            raise RuntimeError('Required command not found: ' + command)
+    run('apt-get', 'check')
+    audit = run('dpkg', '--audit')
+    if audit.stdout.strip():
+        raise RuntimeError(audit.stdout)
+    run('systemctl', 'is-active', '--quiet', 'greetd.service')
+    run('pgrep', '-x', 'dwm')
+    print('Completed: Plasma X11 is installed and the Wayland session is hidden. Existing package versions were preserved.', flush=True)
+    print('The greetd configuration and running dwm session were preserved.', flush=True)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as error:
+        print('Error: ' + str(error), file=sys.stderr)
+        sys.exit(1)

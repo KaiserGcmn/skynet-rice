@@ -1,0 +1,2 @@
+#define GETTEXT_PACKAGE "mate-polkit"
+#define HAVE_BIND_TEXTDOMAIN_CODESET 1

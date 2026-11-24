@@ -1,0 +1,19 @@
+#!/bin/sh
+# Normal desktop launches share Kitty's GPU cache within the same environment.
+# Keep explicit commands, kittens and configuration flags fully independent.
+skynet_kitty_exe=/usr/bin/kitty
+if [ "$#" -eq 0 ]; then
+    # A newly installed package must not join an already running older build.
+    skynet_kitty_build=$(/usr/bin/stat -Lc '%i-%Y' /usr/lib/kitty/kitty/fast_data_types.so) ||
+        exec "$skynet_kitty_exe"
+    skynet_kitty_group="skynet-system-${skynet_kitty_build}"
+    # Kitty 0.41 reuses the first window's environment. Hash the complete
+    # environment so changed PATHs, virtualenvs and displays get their own group.
+    # Only the digest is used; no environment values are written to disk.
+    skynet_kitty_instance=$(/usr/bin/env -0 | LC_ALL=C /usr/bin/sort -z | /usr/bin/sha256sum) ||
+        exec "$skynet_kitty_exe"
+    exec "$skynet_kitty_exe" --single-instance \
+        --instance-group "${skynet_kitty_group}-${skynet_kitty_instance%% *}" \
+        --wait-for-single-instance-window-close
+fi
+exec "$skynet_kitty_exe" "$@"
